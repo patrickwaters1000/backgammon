@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      .blueHover:hover { background: #d0d0ff; }
+      .flexGrow { flex-grow: 1; }
+      .loginButton { display: block; width: 100%; border: none; background-color: #4CAF50; padding: 14px 28px; font-size: 16px; cursor: pointer; text-align: center; color: #FFFFFF; position: relative; left: 0; bottom: 0; }
+      .userNameInput { border: none; position: relative; left: 0; bottom: 0; } 
+      .userNameInput:active,.userNameInput:hover { border-bottom: 2px solid black; }
+      .userNameLabel { position: relative; left: 0; bottom: 0; }
+      th { text-align: left; font-weight: 400; }
+      h2 { font-weight: 400; }
+    </style>
+    <title>Ante room</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/react@16/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js" crossorigin></script>
+    <script src="ante-room-2.js?v=1"></script>
+  </head>
+  <body>
+    <div id="main" style="width: 100%; height: 600px;">
+    </div>
+  </body>
+</html>
