@@ -163,47 +163,53 @@ class InputName extends React.Component {
   }*/
 
   render() {
-    const style = {
+    /*const style = {
       display: "flex",
       padding: "0px",
       flexDirection: "row",
       width: "100%",
       fontFamily: "Helvetica",
-      onSubmit: (e) => {
+      
+    };*/
+    return React.createElement(
+      "form",
+      { onSubmit: (e) => {
         e.preventDefault();
-        //this.submit();
         const userName = document.getElementById("username").value;
         this.props.loginFn(userName);
-      }
-    };
-    return React.createElement(
-      "form", { style: style },
+      }},
       React.createElement(
-	"div", { style: { width: "150px" }},
-	React.createElement("p", { className: "userNameLabel"}, "Name:")),
-      React.createElement(
-	"div", { style: { width: "200px" },
-		 //className: "flexGrow",
-	       },
+	"table", { style: { width: "100%"}},
 	React.createElement(
-	  "input", { id: "username", className: "userNameInput"})
-	  //"p", null, "hello")
-      ),
-      React.createElement(
-	"div", { style: { width: "150px" }},
-	React.createElement(
-          "button",
-          {
-            className: "loginButton",
-            background: "#272727",
-            onClick: () => {
-              const userName = document.getElementById("username").value;
-              this.props.loginFn(userName);
-              //this.submit
-            }
-          },
-          "Go"
-	))
+	  "tbody",{},
+	  React.createElement(
+	    "tr",{},
+	    React.createElement(
+	      "td", { style: {width: "25%" }},
+	      React.createElement("p", { className: "userNameLabel"}, "Name:")),
+	    React.createElement(
+	      "td", { style: {width: "50%" }},
+	      React.createElement(
+		"input", { id: "username", className: "userNameInput"})
+	    ),
+	    React.createElement(
+	      "td", { style: {width: "25%" }},
+	      React.createElement(
+		"button",
+		{
+		  className: "loginButton",
+		  background: "#272727",
+		  onClick: () => {
+		    const userName = document.getElementById("username").value;
+		    this.props.loginFn(userName);
+		  }
+		},
+		"Go"
+	      )
+	    )
+	  )
+	)
+      )
     );
   }
 }

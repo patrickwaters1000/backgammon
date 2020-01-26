@@ -2,12 +2,13 @@
 <html>
   <head>
     <style>
+      td { overflow: hidden; }
       .blueHover:hover { background: #d0d0ff; }
       .flexGrow { flex-grow: 1; }
-      .loginButton { display: block; width: 100%; border: none; background-color: #4CAF50; padding: 14px 28px; font-size: 16px; cursor: pointer; text-align: center; color: #FFFFFF; position: relative; left: 0; bottom: 0; }
-      .userNameInput { border: none; position: relative; left: 0; bottom: 0; } 
-      .userNameInput:active,.userNameInput:hover { border-bottom: 2px solid black; }
-      .userNameLabel { position: relative; left: 0; bottom: 0; }
+      .loginButton { display: block; width: 100%; border: none; background-color: #4CAF50; padding-top: 14px; padding-bottom: 14px; font-size: 16px; cursor: pointer; text-align: center; color: #FFFFFF; }
+      .userNameInput { border: none; max-width: 150px; box-sizing: border-box; } 
+      .userNameInput:active,.userNameInput:hover { border-bottom: 1px solid black; font-size: 16px; }
+      .userNameLabel { }
       th { text-align: left; font-weight: 400; }
       h2 { font-weight: 400; }
     </style>
