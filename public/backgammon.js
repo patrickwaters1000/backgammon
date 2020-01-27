@@ -498,8 +498,6 @@ window.addEventListener(
       console.log(`Received state ${m}`);
       backgammonBoard.setState(m);
     });
-    console.log('Game state listener added.');
-
 
     socket.emit('request-initial-game-state', { gameId: gameId });
 
@@ -507,7 +505,7 @@ window.addEventListener(
       'game-over',
       m => {
         alert(`${m.winner} has won the game`);
-        window.location.href =`ante-room-2.html?token=${token}&userName=${player}`;
+        window.location.href =`ante-room-2.html?token=${token}&userName=${params.get("username")}`;
       }
     );
   }

@@ -1,7 +1,12 @@
 const params = new URLSearchParams(window.location.search);
-const token = params.get("token") || Math.random().toString().substring(2);;
+const token = params.get("token")
 
 var socket = io();
+
+socket.emit(
+  'update-socket', // after coming to this page, the server still has a connection to the login page
+  token
+);
 
 // React expects state to be reassigned, not mutated
 function deepCopy(state) {
@@ -83,12 +88,13 @@ function challengeDeclined (state) {
 
 class TitleArea extends React.Component {
   render() {
-    const style = {
-      fontFamily: "Helvetica",
-      //margin: "auto"
-    };
     return React.createElement(
-      "h2", { style: style}, "Backgammon ante room"
+      "div", null,
+      React.createElement(
+	"h2", null , "Backgammon"),
+      React.createElement(
+	"p",null, "Click a player to challenge them"
+      )
     );
   }
 }
@@ -155,64 +161,6 @@ class ChallengeStatus extends React.Component {
   }
 }
 
-class InputName extends React.Component {
-  // props: loginFn
-  /*submit() {
-    const userName = document.getElementById("username").value;
-    this.props.loginFn(userName);
-  }*/
-
-  render() {
-    /*const style = {
-      display: "flex",
-      padding: "0px",
-      flexDirection: "row",
-      width: "100%",
-      fontFamily: "Helvetica",
-      
-    };*/
-    return React.createElement(
-      "form",
-      { onSubmit: (e) => {
-        e.preventDefault();
-        const userName = document.getElementById("username").value;
-        this.props.loginFn(userName);
-      }},
-      React.createElement(
-	"table", { style: { width: "100%"}},
-	React.createElement(
-	  "tbody",{},
-	  React.createElement(
-	    "tr",{},
-	    React.createElement(
-	      "td", { style: {width: "25%" }},
-	      React.createElement("p", { className: "userNameLabel"}, "Name:")),
-	    React.createElement(
-	      "td", { style: {width: "50%" }},
-	      React.createElement(
-		"input", { id: "username", className: "userNameInput"})
-	    ),
-	    React.createElement(
-	      "td", { style: {width: "25%" }},
-	      React.createElement(
-		"button",
-		{
-		  className: "loginButton",
-		  background: "#272727",
-		  onClick: () => {
-		    const userName = document.getElementById("username").value;
-		    this.props.loginFn(userName);
-		  }
-		},
-		"Go"
-	      )
-	    )
-	  )
-	)
-      )
-    );
-  }
-}
 
 class Page extends React.Component {
   // state: players, sentChallenge ( .player, .status )
@@ -230,6 +178,7 @@ class Page extends React.Component {
       console.log(`Received list of players ${JSON.stringify(msg)}`);
     });
     socket.on('challenge', msg => {
+      console.log(`Received challenge ${JSON.stringify(msg)}`);
       this.setState(receiveChallenge(this.state, msg));
     });
     socket.on('challenge-declined', msg => {
@@ -237,24 +186,11 @@ class Page extends React.Component {
       this.setState(challengeDeclined(this.state, msg));
     });
     socket.on('start-game', msg => {
-      window.location.href =`backgammon.html?game=${msg.gameId}&player=${msg.player}&token=${token}`;
+      window.location.href =`backgammon.html?game=${msg.gameId}&player=${msg.player}&token=${token}&username=${params.get("userName")}`;
     });
   }
 
   render() {
-    const style = {
-      margin: "auto",
-      marginTop: "100px",
-      padding: "10px",
-      width: "400px",
-      height: "400px",
-      display: "flex",
-      flexDirection: "column",
-      borderStyle: "solid",
-      borderWidth: "1px",
-      borderRadius: "10px",
-      fontFamily: "Helvetica"
-    };
     var children = [
       React.createElement(TitleArea),
       React.createElement(
@@ -274,19 +210,8 @@ class Page extends React.Component {
           ChallengeStatus,
           { player: this.state.sentChallenge.player, status: this.state.sentChallenge.status }));
     }
-    if (!this.state.userName) {
-      children.push(
-        React.createElement(
-          InputName,
-          {
-            loginFn: userName => {
-              console.log("Gonna try login soon.");
-              this.setState(login(this.state, userName));
-            }
-          }
-        ));
-    }
-    return React.createElement("div", { style: style }, ...children);
+    
+    return React.createElement("div", { className: "page" }, ...children);
   }
 }
 

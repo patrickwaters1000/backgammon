@@ -2,15 +2,32 @@
 <html>
   <head>
     <style>
+      .container {
+      margin: auto;
+      margin-top: 100px;
+      width: 40%;
+      }
+      
       td { overflow: hidden; }
       .blueHover:hover { background: #d0d0ff; }
       .flexGrow { flex-grow: 1; }
-      .loginButton { display: block; width: 100%; border: none; background-color: #4CAF50; padding-top: 14px; padding-bottom: 14px; font-size: 16px; cursor: pointer; text-align: center; color: #FFFFFF; }
-      .userNameInput { border: none; max-width: 150px; box-sizing: border-box; } 
-      .userNameInput:active,.userNameInput:hover { border-bottom: 1px solid black; font-size: 16px; }
-      .userNameLabel { }
+
+      .page {
+      margin: auto;
+      margin-top: 100px;
+      padding: 10px;
+      width: 40%;
+      height: 400px;
+      display: flex;
+      flex-direction: column;
+      border: 3px solid #d1d1d1;
+      }
+      
       th { text-align: left; font-weight: 400; }
-      h2 { font-weight: 400; }
+      h2 {
+      font-family: "Helvetica",
+      /*font-weight: 400;*/
+      }
     </style>
     <title>Ante room</title>
     <script src="/socket.io/socket.io.js"></script>

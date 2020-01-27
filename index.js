@@ -3,16 +3,21 @@ var app = express();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
 
-var playerToToken = {};
-var playerToSocket = {};
-var playerToGame = {};
-var playerToChallenge = {}; // p1 maps to p2 if p1 has an open challenge to p2
-var playerToStats = {}; // currently let's count wins and losses
-var games = {}; // gameId to object with keys white, black, state
+var playerToToken = {}; // in memory
+var playerToSocket = {}; // in memory
+var playerToGame = {}; // in memory
+var playerToChallenge = {}; // p1 maps to p2 if p1 has an open challenge to p2, in memory
+// var playerToStats = {}; // read and write to disk
+var games = {}; // gameId to object with keys white, black, state; in memory
+
+var fs = require("fs");
 
 function tryEmit (player, msgType, msgData) {
   const socket = playerToSocket[player];
-  if (socket) { socket.emit(msgType, msgData); }
+  if (socket) {
+    console.log(`Sending ${msgType} ${JSON.stringify(msgData)} to ${player}`);
+    socket.emit(msgType, msgData);
+  }
   else { console.log(`No socket for ${player}`); }
 }
 
@@ -34,7 +39,7 @@ function tokenToPlayer (token) {
   for (player in playerToToken) {
     if (playerToToken[player]==token) { return player; }
   }
-  throw `Couldn't find token ${token}`;
+  console.log(`Couldn't find token ${token}`);
 }
 
 var initialWhiteTokensPerPip =
@@ -223,7 +228,7 @@ app.use(express.static('public'));
 
 app.get('/', function(req, res){
   // var token = Math.random().toString().substring(2);
-  res.sendFile(`${__dirname}/public/ante-room-2.html`);
+  res.sendFile(`${__dirname}/public/login.html`);
 });
 
 function hasWon(state, color) {
@@ -248,9 +253,18 @@ function sendGameOver(game, winningColor) {
   const winningPlayer = game[winningColor];
   const losingColor = (winningColor === "white" ? "black" : "white");
   const losingPlayer = game[losingColor];
+  const data = fs.readFileSync(`${__dirname}/players`);
+  const playerToStats = JSON.parse(data);
   playerToStats[winningPlayer].wins += 1;
   playerToStats[losingPlayer].losses += 1;
-  sendToPlayers(game, 'game-over', { winner: game[winningColor] });
+  fs.writeFileSync(`${__dirname}/players`, JSON.stringify(playerToStats));
+  sendToPlayers(
+    game,
+    'game-over',
+    {
+      winner: game[winningColor],
+    }
+  );  
 }
 
 function sendGameState(game) {
@@ -258,6 +272,8 @@ function sendGameState(game) {
 }
 
 function listPlayersOnline() {
+  const data = fs.readFileSync(`${__dirname}/players`);
+  const playerToStats = JSON.parse(data);
   return [...Object.keys(playerToToken)].map(
     player => ({
       player: player,
@@ -285,11 +301,21 @@ io.on('connection', function(socket) {
   socket.on(
     'login',
     m => {
-      playerToToken[m.userName] = m.token; // Should enforce that you cannot take an existing username
-      playerToStats[m.userName] = { wins: 0, losses: 0 };
-      console.log(`Player to token = ${JSON.stringify(playerToToken)}`);
-      playerToSocket[m.userName] = socket;
-      io.emit('update-users-online', listPlayersOnline());
+      console.log(`Login msg ${JSON.stringify(m)}`);
+      const playerToStats = JSON.parse(fs.readFileSync(`${__dirname}/players`));
+      console.log(`players: ${JSON.stringify(playerToStats)}`);
+      if (playerToStats[m.username] &&
+	  m.password === playerToStats[m.username].password) {
+	const token = Math.random().toString().substring(2);
+	playerToToken[m.username] = token;
+	console.log(`Player to token = ${JSON.stringify(playerToToken)}`);
+	playerToSocket[m.username] = socket;
+	socket.emit('token', token);
+	io.emit('update-users-online', listPlayersOnline());
+      } else {
+	console.log(`Invalid password ${m.password} for ${m.username}`);
+	socket.emit('login-failed',null);
+      }
     }
   );
   socket.on(
@@ -303,6 +329,7 @@ io.on('connection', function(socket) {
       if (playerToToken[m.p1] == m.token
           && m.p1 != m.p2) {
         playerToChallenge[m.p1] = m.p2; // If no socket for p2, should remove from playerToChallenge
+	
 	tryEmit(m.p2, 'challenge', { p1: m.p1 });
       } else {
 	console.log(
