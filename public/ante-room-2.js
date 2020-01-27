@@ -211,7 +211,13 @@ class Page extends React.Component {
           { player: this.state.sentChallenge.player, status: this.state.sentChallenge.status }));
     }
     
-    return React.createElement("div", { className: "page" }, ...children);
+    return React.createElement(
+      "div", { className: "container" },
+      React.createElement(
+	"div", { className: "page" },
+	...children
+      )
+    );
   }
 }
 
