@@ -43,23 +43,23 @@ function tokenToPlayer (token) {
 }
 
 var initialWhiteTokensPerPip =
-    [
+/*    [
       0,
       0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 2,
       2, 0, 0, 0, 0, 0,
       0
-    ];
-/*[
+    ];*/
+[
   0, // bar area for white, home area for black
   2, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 5,
   0, 0, 0, 0, 3, 0,
   5, 0, 0, 0, 0, 0,
   0 // home area for white, bar area for black
-  ];
-*/
+];
+
 
 const initialGameState = {
   tokensPerPip: {
