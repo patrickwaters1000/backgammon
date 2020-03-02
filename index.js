@@ -135,17 +135,18 @@ function handleChallengeAccepted (m, socket) {
 }
 
 const maxNextTurnRetries = 10;
-function nextTurnUntilLegalMoveExists (oldFormatGame) {
+function nextTurnUntilLegalMoveExists (oldFormatGame, gameId) {
   const game = toNewGameFormat(oldFormatGame);
   var retries = maxNextTurnRetries;
-  while (retries > 0
-	 && !Game.legalMoveExistsOrNextTurn(game)) {
+  while (!Game.legalMoveExistsOrNextTurn(game)) {
     retries -= 1;
-    sendGameState(oldFormatGame);
+    if (retries <= 0) { throw "No more retries"; }
+    games[gameId] = toOldGameFormat(game);
+    sendGameState(toOldGameFormat(game));
     sendToPlayers(
-      oldFormatGame,
+      toOldGameFormat(game),
       'chat-message',
-      `Roll = ${newState.dice}; no legal move`
+      `Rolls to play are ${game.rollsToPlay}; no legal move`
     );
   }
 }
@@ -189,7 +190,7 @@ function handleMoveMessage (m) {
   } else {
     sendGameState(toOldGameFormat(game));
   }
-  nextTurnUntilLegalMoveExists(toOldGameFormat(game));
+  nextTurnUntilLegalMoveExists(toOldGameFormat(game), m.gameId);
 }
 
 function tryEmit (player, msgType, msgData) {
