@@ -1,4 +1,4 @@
-const rules = require('./gameLogic.js');
+const Game = require('./game.js');
 var express = require('express');
 var app = express();
 var http = require('http').createServer(app);
@@ -15,6 +15,12 @@ var games = {}; // gameId to object with keys white, black, state; in
 
 var fs = require("fs");
 
+// TODO: refactor code for authenticating messages
+// TODO: something better for players "db"
+// TODO: move code for managing active players to separate ns
+// TODO: move code for managing active games to separate ns
+// TODO: use "from" in messages for challenge-accepted, etc. (The p1
+// and p2 convention is extremely confusing)
 
 // I refactored the game logic to represent the state in a different
 // format. I should update the client side to use the new format, but
@@ -22,7 +28,169 @@ var fs = require("fs");
 // against. For now, I'll just add a function that converts the new
 // game state format to the old format so that I don't have to change
 // the client side code.
+function toOldGameFormat (s) {
+  const whiteTokens = s.tokens.map(
+    x => (x > 0 ? x : 0)
+  );
+  const blackTokens = s.tokens.map(
+    x => (x < 0 ? -x : 0)
+  );
+  return {
+    state: {
+      tokensPerPip: {
+	white: whiteTokens,
+	black: blackTokens
+      },
+      dice: s.dice,
+      movesToPlay: s.rollsToPlay,
+      active: s.active,
+      turnNumber: s.turnNumber
+    },
+    white: s.players.white,
+    black: s.players.black
+  };
+  // I forgot that the new format doesn't keep track of the numbers of
+  // tokens in the home areas.
+}
 
+function toNewGameFormat (s_) {
+  const s = JSON.parse(JSON.stringify(s_));
+  const tokens = s.state.tokensPerPip.white;
+  s.state.tokensPerPip.black.forEach( (x,i) => {
+    if (x > 0) {
+      tokens[i] = -x;
+    }
+  });
+  return {
+    tokens: tokens,
+    active: s.state.active,
+    dice: s.state.dice,
+    rollsToPlay: s.state.movesToPlay,
+    turnNumber: s.state.turnNumber,
+    players: {
+      white: s.white,
+      black: s.black
+    }
+  };
+}
+
+function checkLogin (m, socket) {
+  console.log(`msg ${JSON.stringify(m)}`);
+  const playerToStats = JSON.parse(
+    fs.readFileSync(`${__dirname}/players`));
+  const info = playerToStats[m.username];
+  if (!info) {
+    console.log(`Player ${m.username} not found.`);
+  } else {
+    return m.password === info.password;
+  }
+}
+
+function handleLogin (m, socket) {
+  const token = Math.random().toString().substring(2);
+  playerToToken[m.username] = token;
+  console.log(`Gave token ${token} to ${m.username}`);
+  playerToSocket[m.username] = socket;
+  socket.emit('token', token);
+  io.emit('update-users-online', listPlayersOnline());
+} 
+
+function checkChallenge (m) {
+  const authentic = (playerToToken[m.p1] == m.token);
+  if (!authentic) {
+    console.log(
+      `Ignoring challenge because supplied token ${m.token} `
+	+ `for supposed user ${m.p1} does not `
+	+ `match ${JSON.stringify(playerToToken)}`
+    );
+  }
+  return (authentic && m.p1 != m.p2);
+}
+
+function handleChallenge (m) {
+  // If no socket for p2, should remove from playerToChallenge
+  playerToChallenge[m.p1] = m.p2; 
+  tryEmit(m.p2, 'challenge', { p1: m.p1 });	
+}
+
+function checkChallengeAccepted (m) {
+  const valid = (playerToToken[m.p2]==m.token
+		 && playerToChallenge[m.p1]==m.p2);
+  if (!valid) {
+    console.log('Challenge accepted ignored');
+  }
+  return valid;
+}
+
+function handleChallengeAccepted (m, socket) {
+  playerToChallenge[m.p1] = null;
+  const gameId = Math.random().toString().substring(2);
+  games[gameId] = toOldGameFormat(
+    Game.newGame(m.p1, m.p2));
+  playerToGame[m.p1] = gameId;
+  playerToGame[m.p2] = gameId;
+  // sending gameId busts cache
+  socket.emit('start-game', { gameId: gameId, player: "black" });
+  tryEmit(m.p1, 'start-game', { gameId: gameId, player: "white" });
+}
+
+const maxNextTurnRetries = 10;
+function nextTurnUntilLegalMoveExists (oldFormatGame) {
+  const game = toNewGameFormat(oldFormatGame);
+  var retries = maxNextTurnRetries;
+  while (retries > 0
+	 && !Game.legalMoveExistsOrNextTurn(game)) {
+    retries -= 1;
+    sendGameState(oldFormatGame);
+    sendToPlayers(
+      oldFormatGame,
+      'chat-message',
+      `Roll = ${newState.dice}; no legal move`
+    );
+  }
+}
+
+function checkMoveMessage (m) {
+  console.log('received msg: ', m);
+  const game = games[m.gameId];
+  if (!game) {
+    console.log('Game not found');
+  } else {
+    const activeColor = game.state.active;
+    const activePlayer = game[activeColor];
+    const requiredToken = playerToToken[activePlayer];
+    const authentic = (m.token==requiredToken);
+    if (!authentic) {
+      console.log(`Want token ${requiredToken},`
+		  + `but got token ${m.token}`);
+    }
+    return authentic;
+  }
+}
+
+function handleMoveMessage (m) {
+  const oldFormatGame = games[m.gameId];
+  const game = toNewGameFormat(oldFormatGame);
+  var moved, reasons;
+  [moved, reasons] = Game.moveIfLegal(
+    game,
+    { from: m.from, to: m.to }
+  );
+  if (moved) {
+    games[m.gameId] = toOldGameFormat(game);
+  } else {
+    console.log("Move is illegal because\n"
+		+ reasons.join("\n"));
+  }
+  var winner = null;
+  if (Game.activePlayerHasWon(game)) {
+    winner = game.active;
+    sendGameOver(toOldGameFormat(game), winner);
+  } else {
+    sendGameState(toOldGameFormat(game));
+  }
+  nextTurnUntilLegalMoveExists(toOldGameFormat(game));
+}
 
 function tryEmit (player, msgType, msgData) {
   const socket = playerToSocket[player];
@@ -39,9 +207,6 @@ function sendToPlayers(game, msgType, msgData) {
     tryEmit(game[color], msgType, msgData);
   });
 }
-
-
-
 
 // Shouldn't need this. All messages should send username.
 // If the client doesn't known its username the server doesn't either.
@@ -111,19 +276,9 @@ io.on('connection', function(socket) {
   socket.on(
     'login',
     m => {
-      console.log(`Login msg ${JSON.stringify(m)}`);
-      const playerToStats = JSON.parse(fs.readFileSync(`${__dirname}/players`));
-      console.log(`players: ${JSON.stringify(playerToStats)}`);
-      if (playerToStats[m.username] &&
-	  m.password === playerToStats[m.username].password) {
-	const token = Math.random().toString().substring(2);
-	playerToToken[m.username] = token;
-	console.log(`Player to token = ${JSON.stringify(playerToToken)}`);
-	playerToSocket[m.username] = socket;
-	socket.emit('token', token);
-	io.emit('update-users-online', listPlayersOnline());
+      if (checkLogin(m, socket)) {
+	handleLogin(m, socket);
       } else {
-	console.log(`Invalid password ${m.password} for ${m.username}`);
 	socket.emit('login-failed',null);
       }
     }
@@ -135,35 +290,19 @@ io.on('connection', function(socket) {
   socket.on(
     'challenge',
     m => {
-      console.log('received challenge msg', m);
-      if (playerToToken[m.p1] == m.token
-          && m.p1 != m.p2) {
-        playerToChallenge[m.p1] = m.p2; // If no socket for p2, should remove from playerToChallenge
-	
-	tryEmit(m.p2, 'challenge', { p1: m.p1 });
-      } else {
-	console.log(
-	  `Ignoring challenge because supplied token ${m.token} ` +
-	    `for supposed user ${m.p1} does not ` +
-	    `match ${JSON.stringify(playerToToken)}`
-	);
+      console.log('received msg: ', m);
+      if (checkChallenge(m)) {
+	handleChallenge(m);
       }
     }
   );
   socket.on(
     'challenge-accepted',
     m => {
-      console.log('received challenge-accepted msg', m);
-      if (playerToToken[m.p2]==m.token
-          && playerToChallenge[m.p1]==m.p2) {
-        playerToChallenge[m.p1] = null;
-        const gameId = Math.random().toString().substring(2);
-        games[gameId] = newGame(m.p1, m.p2);
-        playerToGame[m.p1] = gameId;
-        playerToGame[m.p2] = gameId;
-        socket.emit('start-game', { gameId: gameId, player: "black" }); // sending gameId busts cache
-        tryEmit(m.p1, 'start-game', { gameId: gameId, player: "white" });
-      } else { console.log('Challenge accepted ignored'); }
+      console.log('received msg: ', m);
+      if (checkChallengeAccepted(m)) {
+	handleChallengeAccepted(m, socket);
+      }
     }
   );
 
@@ -192,60 +331,19 @@ io.on('connection', function(socket) {
   socket.on( // we don't actually need this, right?
     'request-initial-game-state',
     m => {
-      console.log(`Looking up game ${m.gameId} in games = ${JSON.stringify(games)}`);
-      socket.emit('initial-game-state', games[m.gameId].state);
+      console.log(`Looking up game ${m.gameId} `
+		  + `in games = ${JSON.stringify(games)}`);
+      const game = games[m.gameId];
+      const state = ( game ? game.state : null);
+      socket.emit('initial-game-state', state);
     }
   );
   socket.on(
     'move',
     function (m) {
-      console.log('received move: ', m);
-      const game = games[m.gameId];
-      //const activePlayer = (game.state.turnNumber%2==0 ? game.white : game.black);
-
-      activeColor = game.state.active;
-      activePlayer = game[activeColor];
-      const requiredToken = playerToToken[activePlayer];
-      console.log(
-	`Active player ${game.state.active}, `
-	+`tokens ${JSON.stringify(playerToToken)}`);
-      if (m.token==requiredToken
-          && isLegalMove(game.state, m.from, m.to)) {
-        console.log("Legal move confirmed");
-        var newState = moveToken(game.state, m.from, m.to);
-        game.state = newState;
-        const winner = gameOver(game.state); // null if game is not over
-        if (winner) {
-          sendGameOver(game, winner);
-        } else {
-          sendGameState(game);
-          console.log(
-	    `After move, state is ${JSON.stringify(game.state)}`);
-          // make this a function
-          var retriesRemaining = 10;
-          while (!legalMoveExists(newState)
-                 && retriesRemaining > 0) {
-            //throw "FAIL";
-            retriesRemaining -= 1;
-            console.log("No legal move", newState);
-            sendToPlayers(game,
-			  'chat-message',
-			  `Roll = ${newState.dice}; no legal move`);
-            newState = deepCopy(newState);
-            newState.turnNumber += 1;
-            newState.active = pone(newState); // create nextTurn function
-            rollDice(newState);
-            sendGameState(game);
-          };
-        }
-      } else {
-        console.log(
-	  `Got ${m.token==requiredToken} for `
-	  + `${m.token} == ${requiredToken}.`);
-        console.log(
-	  `Got ${isLegalMove(game.state, m.from, m.to)} `
-	  + `for legal move `
-	  + `${[JSON.stringify(game.state), m.from, m.to]}? `);
+      
+      if (checkMoveMessage(m)) {
+	handleMoveMessage(m);
       }
     }
   );

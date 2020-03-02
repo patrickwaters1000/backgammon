@@ -12,8 +12,8 @@ function reversed (a) {
 const initialTokens = [
   0, // bar area for white, home area for black
   2, 0, 0, 0, 0, -5,
-  0, 0, 0, 0, -3, 5,
-  0, 0, 0, 0, 3, -5,
+  0, 3, 0, 0, 0, 5,
+  -5, 0, 0, 0, 3, 0,
   5, 0, 0, 0, 0, -2,
   0 // home area for white, bar area for black
 ];
@@ -24,9 +24,11 @@ function newGame (w,b) {
     active: "white",
     dice: null,
     rollsToPlay: null,
-    tokens: initialTokens
+    tokens: initialTokens,
+    turnNumber: 0 // only used on client side
   };
   rollDice(g);
+  setRollsToPlay(g);
   return g;
 }
 
@@ -88,7 +90,7 @@ function checkToPipNotOccupied(s, m) {
 }
 
 function checkBarRule(s, m) {
-  const allowed = (tokens[0] == 0) || (m.from == 0);
+  const allowed = (s.tokens[0] == 0) || (m.from == 0);
   if (!allowed) {
     return "Player must move from bar";
   }
@@ -159,12 +161,8 @@ function move(s, m) {
     s.tokens[m.to] += 1;
   }
   removeFromMovesToPlay(s, m);
-  // Advancing the turn if no legal moves should cover this
-  if (s.rollsToPlay.length == 0) {
-    rollDice(s);
-    setRollsToPlay(s);
-  }
-  nextPlayer(s);
+  // Advancing the turn when there are no legal moves is a separate
+  // operation.
 }
 
 function moveIfLegal (s, m) {
@@ -212,6 +210,7 @@ function legalMoveExistsOrNextTurn(s) {
   nextPlayer(s);
   rollDice(s);
   setRollsToPlay(s);
+  s.turnNumber += 1;
   return false;
 }
 
