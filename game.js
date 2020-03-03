@@ -12,7 +12,7 @@ function reversed (a) {
 const initialTokens = [
   0, // bar area for white, home area for black
   2, 0, 0, 0, 0, -5,
-  0, 3, 0, 0, 0, 5,
+  0, -3, 0, 0, 0, 5,
   -5, 0, 0, 0, 3, 0,
   5, 0, 0, 0, 0, -2,
   0 // home area for white, bar area for black
@@ -63,6 +63,14 @@ function setRollsToPlay (s) {
     (s.dice[0]==s.dice[1]
      ? Array(4).fill(s.dice[0])
      : s.dice.map( x=> x));
+}
+
+function checkValidPips(s, m) {
+  const allowed = ( range(26).includes(m.from)
+		    && range(26).includes(m.to) );
+  if (!allowed) {
+    return "To or from pip is not on board";
+  }
 }
 
 // case of bearing out with inexact roll handled separately
@@ -122,6 +130,7 @@ function checkDiceSupportBearingOut (s, m) {
 
 function forbiddenReasons(s, m) {
   const reasons = [
+    checkValidPips,
     checkDiceSupportMove,
     checkTokenOnFromPip,
     checkToPipNotOccupied,
@@ -201,6 +210,21 @@ function legalMoveExists(s) {
   return false;
 }
 
+function legalMoves(s) {
+  var toPips, m;
+  const acc = [];
+  occupiedPips(s).forEach( from => {
+    s.rollsToPlay.forEach( diff => {
+      m = { from: from,
+	    to: Math.min(from + diff, 25) };
+      if (!forbiddenReasons(s, m)) {
+	acc.push(m);
+      }
+    });
+  });
+  return acc;
+}
+
 function legalMoveExistsOrNextTurn(s) {
   // If there is a legal move, returns true.
   // Else advances the turn and returns false.
@@ -245,6 +269,20 @@ function withReversedStateAndMove(f, s, m) {
 }
 
 exports.newGame = newGame;
+
+
+exports.legalMoves = function (s) {
+  if (s.active == "black") {
+    reverseState(s);
+    const moves = legalMoves(s);
+    reverseState(s);
+    moves.forEach( m => { reverseMove(m); });
+    return moves;
+  } else {
+    return legalMoves(s);
+  }
+}
+ 
 
 exports.moveIfLegal = function (s, m) {
   return withReversedStateAndMove(moveIfLegal, s, m);

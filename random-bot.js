@@ -1,3 +1,4 @@
+const Game = require('./game.js');
 var socket = require('socket.io-client')('http://localhost:3000');
 
 var token = null;
@@ -7,9 +8,22 @@ var gameId = null;
 // server. Since it makes random moves anyway, this doesn't seem like a big
 // deal.
 
+function convert (s) {
+  const tokens = s.tokensPerPip.white;
+  s.tokensPerPip.black.forEach( (x,i) => {
+    if (x > 0) { tokens[i] = -x; }
+  });
+  return {
+    tokens: tokens,
+    active: s.active,
+    dice: s.dice,
+    rollsToPlay: s.movesToPlay,
+  };
+}
+
 socket.on('token', m => { token = m; } );
 
-socket.on('start-game', m = { gameId = m.gameId; } );
+socket.on('start-game', m => { gameId = m.gameId; } );
 
 socket.on('challenge', m => {
   socket.emit(
@@ -19,36 +33,29 @@ socket.on('challenge', m => {
       token: token });
 });
 
-function candidateMovesFromPip (tokensPerPip, pip, dice) {
-  
-}
-
-function candidateMoves (state) {
-  
-}
-
-// must retry if invalid, or be sure is valid      
 socket.on(
   'game-state', state => {
-    if (state.activePlayer == "black") {
-      const candidateMoves = state.tokensPerPip.black.reduce(
-	(moves, pip, tokens) => {
-	  return ( tokens > 0
-		   : moves.concat(dice.map( die => ({ from: pip, to: pip + die })));
-		   ? moves ); 
-	},
-	[]
-      );
-      const n = candidateMoves.length;
-      const idx = Math.floor( Math.random() * n );
-      socket.emit(
-	'move',
-	{ 'token': token,
-	  ...candidateMoves[idx] }
-      );
-		  
+    console.log(`received ${JSON.stringify(state)}`);
+    if (state.active == "black") {
+      console.log(`received ${JSON.stringify(convert(state))}`);
+      const moves = Game.legalMoves(convert(state));
+      console.log(`candidate moves ${JSON.stringify(moves)}`);
+      const n = moves.length;
+      if (n > 0) {
+	const i = Math.floor( Math.random() * n );
+	const move = moves[i];
+	console.log(`moves ${JSON.stringify(move)}`);
+	const msg = { 'token': token,
+		      'gameId': gameId,
+		      ...move };
+	setTimeout(
+	  () => { socket.emit('move', msg); },
+	  1000,
+	);
+      }
     }
-  });
+  }
+);
 
 socket.emit(
   'login', { username: 'random-bot-1',

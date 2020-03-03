@@ -297,3 +297,35 @@ nextTurnIfNoMovesCases.forEach( data => {
     console.log(msg);
   }
 });
+
+const legalMovesTestCases = [
+  {
+    testing: "legal moves for white",
+    tokens: { 2: 1, 12: 1, 14: -2 },
+    active: "white",
+    dice: [2, 3],
+    expected: [[2,4], [2,5], [12,15]]
+  },
+  {
+    testing: "legal moves for black",
+    tokens: { 22: -1, 12: -1, 10: 2 },
+    active: "black",
+    dice: [2, 3],
+    expected: [[22,20], [22,19], [12,9]]
+  }
+];
+legalMovesTestCases.forEach( data => {
+  const state = makeGame(
+    data.tokens, data.dice, data.active
+  );
+  const result = Game.legalMoves(state);
+  const expected = data.expected.map( m => (
+    { from: m[0], to: m[1] }
+  ));
+  if (JSON.stringify(result) != JSON.stringify(expected)) {
+    msg = [`\nFailed testing ${data.testing}`,
+	   `Want ${JSON.stringify(expected)}`,
+	   `Got  ${JSON.stringify(result)}`].join("\n");
+    console.log(msg);
+  }
+});
