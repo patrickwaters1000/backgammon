@@ -4,8 +4,9 @@ var app = express();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
 
+// The following are somewhat wrongly named since we may have both players and watchers
 var playerToToken = {}; // in memory
-var playerToSocket = {}; // in memory
+var playerToSocket = {}; // in memory 
 var playerToGame = {}; // in memory
 var playerToChallenge = {}; // p1 maps to p2 if p1 has an open challenge
 // to p2, in memory
@@ -21,57 +22,13 @@ var fs = require("fs");
 // TODO: move code for managing active games to separate ns
 // TODO: use "from" in messages for challenge-accepted, etc. (The p1
 // and p2 convention is extremely confusing)
+// TODO: WHAT ABOUT USERNAME COLLISIONS?
 
-// I refactored the game logic to represent the state in a different
-// format. I should update the client side to use the new format, but
-// I really want to get on to writing a that can be played
-// against. For now, I'll just add a function that converts the new
-// game state format to the old format so that I don't have to change
-// the client side code.
-function toOldGameFormat (s) {
-  const whiteTokens = s.tokens.map(
-    x => (x > 0 ? x : 0)
-  );
-  const blackTokens = s.tokens.map(
-    x => (x < 0 ? -x : 0)
-  );
-  return {
-    state: {
-      tokensPerPip: {
-	white: whiteTokens,
-	black: blackTokens
-      },
-      dice: s.dice,
-      movesToPlay: s.rollsToPlay,
-      active: s.active,
-      turnNumber: s.turnNumber
-    },
-    white: s.players.white,
-    black: s.players.black
-  };
-  // I forgot that the new format doesn't keep track of the numbers of
-  // tokens in the home areas.
-}
-
-function toNewGameFormat (s_) {
-  const s = JSON.parse(JSON.stringify(s_));
-  const tokens = s.state.tokensPerPip.white;
-  s.state.tokensPerPip.black.forEach( (x,i) => {
-    if (x > 0) {
-      tokens[i] = -x;
-    }
-  });
-  return {
-    tokens: tokens,
-    active: s.state.active,
-    dice: s.state.dice,
-    rollsToPlay: s.state.movesToPlay,
-    turnNumber: s.state.turnNumber,
-    players: {
-      white: s.white,
-      black: s.black
-    }
-  };
+function newGame (white, black) {
+  return { white: white,
+	   black: black,
+	   audience: [],
+	   state: Game.newGame() };
 }
 
 function checkLogin (m, socket) {
@@ -125,8 +82,7 @@ function checkChallengeAccepted (m) {
 function handleChallengeAccepted (m, socket) {
   playerToChallenge[m.p1] = null;
   const gameId = Math.random().toString().substring(2);
-  games[gameId] = toOldGameFormat(
-    Game.newGame(m.p1, m.p2));
+  games[gameId] = newGame(m.p1, m.p2);
   playerToGame[m.p1] = gameId;
   playerToGame[m.p2] = gameId;
   // sending gameId busts cache
@@ -135,19 +91,18 @@ function handleChallengeAccepted (m, socket) {
 }
 
 const maxNextTurnRetries = 10;
-function nextTurnUntilLegalMoveExists (oldFormatGame, gameId) {
-  const game = toNewGameFormat(oldFormatGame);
+function nextTurnUntilLegalMoveExists (game, gameId) {
   var retries = maxNextTurnRetries;
-  while (!Game.legalMoveExistsOrNextTurn(game)) {
+  while (!Game.legalMoveExistsOrNextTurn(game.state)) {
     retries -= 1;
     if (retries <= 0) { throw "No more retries"; }
-    games[gameId] = toOldGameFormat(game);
-    sendGameState(toOldGameFormat(game));
-    sendToPlayers(
+    // games[gameId].state = toOldGameFormat(game);
+    sendGameState(game);
+    /*sendToPlayers(
       toOldGameFormat(game),
       'chat-message',
       `Rolls to play are ${game.rollsToPlay}; no legal move`
-    );
+    );*/
   }
 }
 
@@ -170,27 +125,26 @@ function checkMoveMessage (m) {
 }
 
 function handleMoveMessage (m) {
-  const oldFormatGame = games[m.gameId];
-  const game = toNewGameFormat(oldFormatGame);
+  const game = games[m.gameId];
   var moved, reasons;
   [moved, reasons] = Game.moveIfLegal(
-    game,
+    game.state,
     { from: m.from, to: m.to }
   );
   if (moved) {
-    games[m.gameId] = toOldGameFormat(game);
+    games[m.gameId].state = game.state; // Wait, is this necessary?
   } else {
     console.log("Move is illegal because\n"
 		+ reasons.join("\n"));
   }
   var winner = null;
-  if (Game.activePlayerHasWon(game)) {
+  if (Game.activePlayerHasWon(game.state)) {
     winner = game.active;
-    sendGameOver(toOldGameFormat(game), winner);
+    sendGameOver(game, winner);
   } else {
-    sendGameState(toOldGameFormat(game));
+    sendGameState(game);
   }
-  nextTurnUntilLegalMoveExists(toOldGameFormat(game), m.gameId);
+  nextTurnUntilLegalMoveExists(game, m.gameId);
 }
 
 function tryEmit (player, msgType, msgData) {
@@ -204,8 +158,9 @@ function tryEmit (player, msgType, msgData) {
 }
 
 function sendToPlayers(game, msgType, msgData) {
-  ["white","black"].forEach( color => {
-    tryEmit(game[color], msgType, msgData);
+  userNames = [game.white, game.black, ...game.audience];
+  userNames.forEach( user => {
+    tryEmit(user, msgType, msgData);
   });
 }
 
@@ -218,10 +173,14 @@ function tokenToPlayer (token) {
   console.log(`Couldn't find token ${token}`);
 }
 
-app.use(express.static('public'));
+app.use(express.static('dist'));
 
 app.get('/', function(req, res) {
   res.sendFile(`${__dirname}/public/login.html`);
+});
+
+app.get('/watch', function(req, res) {
+  res.sendFile(`${__dirname}/dist/watchGame.html`);
 });
 
 function sendGameOver(game, winningColor) {
@@ -274,6 +233,17 @@ io.on('connection', function(socket) {
       }
     }
   );
+  socket.on(
+    'watch',
+    m => {
+      if ( m.userName ) {
+	playerToSocket[m.userName] = socket;
+	gameId = Object.keys(games)[0];
+	games[gameId].audience.push(m.userName);
+      }
+    }
+  );
+  
   socket.on(
     'login',
     m => {

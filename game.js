@@ -11,16 +11,13 @@ function reversed (a) {
 
 const initialTokens = [
   0, // bar area for white, home area for black
-  2, 0, 0, 0, 0, -5,
-  0, -3, 0, 0, 0, 5,
-  -5, 0, 0, 0, 3, 0,
-  5, 0, 0, 0, 0, -2,
+  2, 0, 0, 0, 0, -5, 0, -3, 0, 0, 0, 5,
+  -5, 0, 0, 0, 3, 0, 5, 0, 0, 0, 0, -2,
   0 // home area for white, bar area for black
 ];
 
 function newGame (w,b) {
   const g = {
-    players: { white: w, black: b },
     active: "white",
     dice: null,
     rollsToPlay: null,
