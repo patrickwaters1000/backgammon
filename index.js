@@ -4,6 +4,11 @@ var app = express();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
 
+function deepCopy(gameState) {
+  return JSON.parse(JSON.stringify(gameState));
+}
+// const Utils = require('./front/utils.js'); WHY NOT??
+
 // The following are somewhat wrongly named since we may have both players and watchers
 var playerToToken = {}; // in memory
 var playerToSocket = {}; // in memory 
@@ -11,9 +16,7 @@ var playerToGame = {}; // in memory
 var playerToChallenge = {}; // p1 maps to p2 if p1 has an open challenge
 // to p2, in memory
 // var playerToStats = {}; // read and write to disk
-var games = {}; // gameId to object with keys white, black, state; in
-// memory
-
+var games = {}; // gameId to object with keys white, black, state, history
 var fs = require("fs");
 
 // TODO: refactor code for authenticating messages
@@ -22,13 +25,20 @@ var fs = require("fs");
 // TODO: move code for managing active games to separate ns
 // TODO: use "from" in messages for challenge-accepted, etc. (The p1
 // and p2 convention is extremely confusing)
-// TODO: WHAT ABOUT USERNAME COLLISIONS?
+// TODO: WHAT ABOUT USERNAME COLLISIONS? (What if two copies of the
+// same bot log in or a player logs in twice?)
+// TODO: Use https
+// TODO: Refactor logic according to what we are doing, not when we
+// are doing it. For example, instead of `handleChallengeAccepted`,
+// have a `newGame` function.
 
 function newGame (white, black) {
   return { white: white,
 	   black: black,
 	   audience: [],
-	   state: Game.newGame() };
+	   state: Game.newGame(),
+	   history: []
+	 };
 }
 
 function checkLogin (m, socket) {
@@ -66,8 +76,8 @@ function checkChallenge (m) {
 
 function handleChallenge (m) {
   // If no socket for p2, should remove from playerToChallenge
-  playerToChallenge[m.p1] = m.p2; 
-  tryEmit(m.p2, 'challenge', { p1: m.p1 });	
+  playerToChallenge[m.p1] = m.p2;
+  tryEmit(m.p2, 'challenge', { p1: m.p1 });
 }
 
 function checkChallengeAccepted (m) {
@@ -127,6 +137,11 @@ function checkMoveMessage (m) {
 function handleMoveMessage (m) {
   const game = games[m.gameId];
   var moved, reasons;
+  game.history.push({
+    from: m.from,
+    to: m.to,
+    newState: deepCopy(game.state)
+  });
   [moved, reasons] = Game.moveIfLegal(
     game.state,
     { from: m.from, to: m.to }
@@ -139,8 +154,10 @@ function handleMoveMessage (m) {
   }
   var winner = null;
   if (Game.activePlayerHasWon(game.state)) {
-    winner = game.active;
-    sendGameOver(game, winner);
+    winner = game.state.active;
+    const gameCopy = deepCopy(game);
+    delete games[m.gameId];
+    sendGameOver(gameCopy, winner);
   } else {
     sendGameState(game);
   }
@@ -184,6 +201,8 @@ app.get('/watch', function(req, res) {
 });
 
 function sendGameOver(game, winningColor) {
+  console.log("finished game", JSON.stringify(game),
+	      "winner was", winningColor);
   const winningPlayer = game[winningColor];
   const losingColor = (winningColor === "white" ? "black" : "white");
   const losingPlayer = game[losingColor];
@@ -193,13 +212,17 @@ function sendGameOver(game, winningColor) {
   playerToStats[losingPlayer].losses += 1;
   fs.writeFileSync(`${__dirname}/players`,
 		   JSON.stringify(playerToStats));
+  game.winner = winningColor;
+  fs.appendFileSync('games-history',
+		    ",\n"+ JSON.stringify(game));
+  const gamesFile = fs.readFileSync(`${__dirname}/players`);
   sendToPlayers(
     game,
     'game-over',
     {
       winner: game[winningColor],
     }
-  );  
+  );
 }
 
 function sendGameState(game) {
@@ -239,7 +262,9 @@ io.on('connection', function(socket) {
       if ( m.userName ) {
 	playerToSocket[m.userName] = socket;
 	gameId = Object.keys(games)[0];
-	games[gameId].audience.push(m.userName);
+	if (games[gameId]) {
+	  games[gameId].audience.push(m.userName);
+	}
       }
     }
   );
@@ -255,13 +280,13 @@ io.on('connection', function(socket) {
     }
   );
   socket.on(
-    'request-players-online',
+    'request-players-online', // Should tighten this up
     m => { io.emit('update-users-online', listPlayersOnline()); }
   );
   socket.on(
     'challenge',
     m => {
-      console.log('received msg: ', m);
+      console.log('received challenge: ', m);
       if (checkChallenge(m)) {
 	handleChallenge(m);
       }
@@ -270,7 +295,7 @@ io.on('connection', function(socket) {
   socket.on(
     'challenge-accepted',
     m => {
-      console.log('received msg: ', m);
+      console.log('received challenge-accepted: ', m);
       if (checkChallengeAccepted(m)) {
 	handleChallengeAccepted(m, socket);
       }
@@ -280,7 +305,7 @@ io.on('connection', function(socket) {
   socket.on(
     'challenge-declined',
     m => {
-      console.log('received challenge-declined msg', m);
+      console.log('received challenge-declined', m);
       if (playerToToken[m.p2]==m.token
           && playerToChallenge[m.p1]==m.p2) {
         playerToChallenge[m.p1] = null;
@@ -295,20 +320,21 @@ io.on('connection', function(socket) {
     playerToSocket[player] = socket;
     console.log(`Updated socket for ${player}`);
   });
+  
   socket.on(
     'request-game-state',
-    m => { socket.emit('game-state', games[m.gameId].state); }
-  );
-  socket.on( // we don't actually need this, right?
-    'request-initial-game-state',
     m => {
-      console.log(`Looking up game ${m.gameId} `
-		  + `in games = ${JSON.stringify(games)}`);
+      console.log('received request-game-state',
+		  JSON.stringify(m));
       const game = games[m.gameId];
-      const state = ( game ? game.state : null);
-      socket.emit('initial-game-state', state);
+      if (game) {
+	socket.emit('game-state', game.state);
+      } else {
+	console.log("Game not found");
+      }
     }
   );
+  
   socket.on(
     'move',
     function (m) {
