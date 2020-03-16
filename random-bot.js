@@ -2,12 +2,12 @@ const Game = require('./game.js');
 var socket = require('socket.io-client')('http://localhost:3000');
 var argv = require('minimist')(process.argv.slice(2));
 
-// This bot should really use js-csp
+// This bot should perhaps use js-csp
 
 const challenge = argv['c'];
 const accept = argv['a'];
 const delay = argv['d'];
-const userName = argv['u'];
+const name = argv['u'];
 const password = {
   "random-bot-1": "gigabyte",
   "random-bot-2": "kilojoule"
@@ -16,6 +16,7 @@ console.log("argv", JSON.stringify(argv));
 
 var token = null;
 var gameId = null;
+var state = null;
 var color = null;
 var mode = null; // whether the bot is in a game 
 // currently assuming player = black
@@ -30,16 +31,19 @@ function randomChoice (choices) {
   }
 }
 
-function randomMove (state) {
+function randomMove () {
   const moves = Game.legalMoves(state);
-  console.log(`candidate moves ${JSON.stringify(moves)}`);
+  console.log('candidate moves:', JSON.stringify(moves));
   const move = randomChoice(moves);
   if (move) {
     const msg = { 'token': token,
 		  'gameId': gameId,
 		  ...move };
     setTimeout(
-      () => { socket.emit('move', msg); },
+      () => {
+	console.log('Sending move:', JSON.stringify(msg));
+	socket.emit('move', msg);
+      },
       (delay || 1000)
     );
   }
@@ -49,16 +53,13 @@ socket.on('token', m => { token = m; } );
 
 // Listening for this so to send challenges.
 // Really should be using channels instead.
-socket.on('update-users-online', m => {
+socket.on('active-users', m => {
   if (gameId == null && challenge) {
-    const players = m
-	  .map( info => info.player )
-	  .filter( player => (player != userName));
+    const players = m.filter( player => (player != name));
     const pone = randomChoice(players);
     socket.emit(
       'challenge',
-      { p1: userName,
-	p2: pone,
+      { to: pone,
 	token: token }
     );
   }
@@ -68,25 +69,54 @@ socket.on('challenge', m => {
   if (!gameId && accept) {
     socket.emit(
       'challenge-accepted',
-      { p1: m.p1,
-	p2: 'random-bot-1',
+      { to: m.from,
 	token: token });
   }
 });
 
-socket.on('start-game', m => {
+socket.on('new-game', m => {
   if (!gameId) {
+    console.log('New game:', JSON.stringify(m));
     gameId = m.gameId;
-    color = m.player;
-    socket.emit('request-game-state', {gameId: gameId});
+    state = Game.newGame();
+    console.log('New game state:', state);
+    color = (m.white == name ? 'white' : 'black');
+    if (state.active == color) {
+      socket.emit('roll', { token: token, gameId: gameId });
+    }
   }
 });
 
 socket.on(
-  'game-state', state => {
-    console.log("Received state", JSON.stringify(state));
-    if (state.active == color) {
-      randomMove(state);
+  'roll', m => {
+    console.log("Received roll", JSON.stringify(m));
+    Game.setDice(state, m.dice);
+    console.log('State:', JSON.stringify(state));
+    if (gameId == m.gameId
+	&& state.active == color) {
+      if (!state.dice) {
+	console.log('Sending roll');
+	socket.emit('roll', { token: token, gameId: gameId });
+      } else {
+	randomMove();
+      }
+    }
+  }
+);
+
+socket.on(
+  'move', m => {
+    console.log("Received move", JSON.stringify(m));
+    Game.move(state, m);
+    console.log('State:', JSON.stringify(state));
+    if (gameId == m.gameId
+	&& state.active == color) {
+      if (!state.dice) {
+	socket.emit('Sending roll');
+	socket.emit('roll', { token: token, gameId: gameId });
+      } else {
+	randomMove();
+      }
     }
   }
 );
@@ -98,14 +128,14 @@ socket.on(
 );
 
 socket.emit(
-  'login', { username: userName,
+  'login', { name: name,
 	     password: password }
 );
 
 setInterval(
   () => {
     if (!gameId && challenge) {
-      socket.emit('request-players-online', null);
+      socket.emit('request-active-users', null);
       // on response, will issue challenge
     }
   },

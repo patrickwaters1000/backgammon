@@ -1,37 +1,54 @@
-function range (i,j) {
-  return (j
-          ? Array(j-i).fill(0).map( (_, idx) => idx+i )
-          : Array(i).fill(0).map( (_, idx) => idx ) );
+const { range,
+	reversed,
+	deepCopy
+      } = require('./utils.js');
+
+class IllegalMove extends Error {
+  constructor (msg, reasons) {
+    super(msg);
+    this.name = "IllegalMove";
+    this.reasons = reasons;
+  }
+};
+exports.IllegalMove = IllegalMove;
+
+// Using a function, lest the "initial state" be mutated.
+function initialTokens () {
+  return [
+    0, // bar area for white, home area for black
+    2, 0, 0, 0, 0, -5, 0, -3, 0, 0, 0, 5,
+    -5, 0, 0, 0, 3, 0, 5, 0, 0, 0, 0, -2,
+    0 // home area for white, bar area for black
+  ];
 }
 
-function reversed (a) {
-  const n = a.length;
-  return range(n).map( i => a[n-i] );
-}
-
-const initialTokens = [
-  0, // bar area for white, home area for black
-  2, 0, 0, 0, 0, -5, 0, -3, 0, 0, 0, 5,
-  -5, 0, 0, 0, 3, 0, 5, 0, 0, 0, 0, -2,
-  0 // home area for white, bar area for black
-];
-
-function newGame (w,b) {
+function newGame () {
   const g = {
     active: "white",
     dice: null,
     rollsToPlay: null,
-    tokens: initialTokens,
-    turnNumber: 0 // only used on client side
+    tokens: initialTokens()
   };
-  rollDice(g);
-  setRollsToPlay(g);
   return g;
 }
 
 function nextPlayer (s) {
   s.active = (s.active == "white"
 	      ? "black" : "white");
+}
+
+function rollDice (s) {
+  s.dice = [0,0].map(
+    x => Math.ceil(6 * Math.random())
+  );
+}
+
+function setRollsToPlay (s) {
+  //console.log('Dice:',JSON.stringify(s.dice));
+  s.rollsToPlay =
+    (s.dice[0]==s.dice[1]
+     ? Array(4).fill(s.dice[0])
+     : s.dice.map( x=> x));
 }
 
 function occupiedPips (s) {
@@ -47,19 +64,6 @@ function occupiedPips (s) {
 
 function inHomeQuadrant (pip) { 
   return pip > 18;
-}
-
-function rollDice (s) {
-  s.dice = [0,0].map(
-    x => Math.ceil(6 * Math.random())
-  );
-}
-
-function setRollsToPlay (s) {
-  s.rollsToPlay =
-    (s.dice[0]==s.dice[1]
-     ? Array(4).fill(s.dice[0])
-     : s.dice.map( x=> x));
 }
 
 function checkValidPips(s, m) {
@@ -125,8 +129,8 @@ function checkDiceSupportBearingOut (s, m) {
   }
 }
 
-function forbiddenReasons(s, m) {
-  const reasons = [
+function forbiddenReasons (s, m) {
+  return [
     checkValidPips,
     checkDiceSupportMove,
     checkTokenOnFromPip,
@@ -139,7 +143,16 @@ function forbiddenReasons(s, m) {
   ).filter(
     x => x
   );
-  return ( reasons.length == 0 ? null : reasons);
+}
+
+function validateMove(s, m) {
+  const reasons = forbiddenReasons(s, m);
+  if (reasons.length > 0) {
+    throw new IllegalMove(
+      `Moving from ${m.from} to ${m.to} is illegal`,
+      reasons
+    );
+  }
 }
 
 function sendToBarIfNecessary(s, pip) {
@@ -171,16 +184,6 @@ function move(s, m) {
   // operation.
 }
 
-function moveIfLegal (s, m) {
-  const reasons = forbiddenReasons(s, m);
-  const canMove = !reasons;
-  if (canMove) {
-    move(s,m);
-  }
-  return [canMove, reasons];
-}
-
-
 function hasWon(s) {
   return occupiedPips(s).length == 0;
 }
@@ -191,7 +194,7 @@ function reverseState(s) {
   nextPlayer(s);
 }
 
-function legalMoveExists(s) {
+function hasLegalMove(s) {
   var toPips, m;
   for (from=0; from<25; from++) {
     toPips = s.rollsToPlay.map( d => from + d );
@@ -199,7 +202,7 @@ function legalMoveExists(s) {
     for (i=0; i<toPips.length; i++) {
       to = toPips[i];
       m = { from: from, to: to };
-      if (!forbiddenReasons(s, m)) {
+      if (forbiddenReasons(s, m).length == 0) {
 	return true;
       }
     }
@@ -214,7 +217,7 @@ function legalMoves(s) {
     s.rollsToPlay.forEach( diff => {
       m = { from: from,
 	    to: Math.min(from + diff, 25) };
-      if (!forbiddenReasons(s, m)) {
+      if (forbiddenReasons(s, m).length == 0) {
 	acc.push(m);
       }
     });
@@ -222,19 +225,19 @@ function legalMoves(s) {
   return acc;
 }
 
-function legalMoveExistsOrNextTurn(s) {
-  // If there is a legal move, returns true.
-  // Else advances the turn and returns false.
-  if (legalMoveExists(s)) {
-    return true;
-  }
+function nextTurn (s) {
   nextPlayer(s);
-  rollDice(s);
-  setRollsToPlay(s);
-  s.turnNumber += 1;
-  return false;
+  s.dice = null;
+  s.rollsToPlay = [];
 }
 
+function tryMove (s, m) {
+  validateMove(s, m);
+  move(s, m);
+  if (!hasLegalMove(s)) {
+    nextTurn(s);
+  }
+}
 
 function reverseMove(m) {
   m.from = 25 - m.from;
@@ -267,6 +270,9 @@ function withReversedStateAndMove(f, s, m) {
 
 exports.newGame = newGame;
 
+exports.hasLegalMove = function (s) {
+  return withReversedState(hasLegalMove, s);
+};
 
 exports.legalMoves = function (s) {
   if (s.active == "black") {
@@ -278,20 +284,57 @@ exports.legalMoves = function (s) {
   } else {
     return legalMoves(s);
   }
+} 
+
+exports.move = function (s, m) {
+  return withReversedStateAndMove(tryMove, s, m);
+};
+
+exports.nextTurn = nextTurn;
+
+// Used by bots
+function setDice (s, dice) {
+  s.dice = dice;
+  setRollsToPlay(s);
+  if (!hasLegalMove(s)) {
+    nextTurn(s);
+    return 'lost-roll'; // return value used only in ml feature extraction for determining whether a reward should be counted for losing the roll.
+  }
 }
- 
 
-exports.moveIfLegal = function (s, m) {
-  return withReversedStateAndMove(moveIfLegal, s, m);
+exports.setDice = function (s, dice) {
+  return withReversedState(
+    s_ => setDice(s_, dice),
+    s
+  );
+}
+
+function roll (s) {
+  rollDice(s);
+  setRollsToPlay(s);
+  const dice = deepCopy(s.dice);
+  if (!hasLegalMove(s)) {
+    nextTurn(s);
+  }
+  return dice;
+}
+
+exports.roll = function (s) {
+  return withReversedState(roll, s);
+}
+
+exports.winner = function (s) {
+  if (hasWon(s)) {
+    return s.active;
+  } else {
+    reverseState(s);
+    if (hasWon(s)) {
+      return s.active;
+    }
+    reverseState(s);
+  }
 };
 
-exports.activePlayerHasWon = function (s) {
-  return withReversedState(hasWon, s)
-};
-
-exports.legalMoveExistsOrNextTurn = function (s) {
-  return withReversedState(legalMoveExistsOrNextTurn, s);
-};
 
 // Testing only below here
 

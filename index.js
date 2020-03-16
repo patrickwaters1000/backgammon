@@ -3,192 +3,83 @@ var express = require('express');
 var app = express();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
+const { login,
+	logout,
+	listActiveUsers,
+	challenge,
+	cancelChallenge,
+	acceptChallenge,
+	declineChallenge } = require('./active-users.js');
+const { newGame,
+	roll,
+	move,
+	resign } = require('./active-games.js');
 
-function deepCopy(gameState) {
-  return JSON.parse(JSON.stringify(gameState));
-}
 // const Utils = require('./front/utils.js'); WHY NOT??
 
 // The following are somewhat wrongly named since we may have both players and watchers
-var playerToToken = {}; // in memory
-var playerToSocket = {}; // in memory 
-var playerToGame = {}; // in memory
-var playerToChallenge = {}; // p1 maps to p2 if p1 has an open challenge
+
 // to p2, in memory
 // var playerToStats = {}; // read and write to disk
-var games = {}; // gameId to object with keys white, black, state, history
-var fs = require("fs");
 
+// NOTE: there could be a "sync" every 10s where the server checks
+// whether users are still there and then sends updates activeUsers to
+// each activeUser
+
+// NOTE: when making a move, the user should send game id, since in
+// principle we could support a signle user playing multiple games
+
+// TODO: Doubling cube and bank rolls
+// TODO: Each player rolls one die at start of game
 // TODO: refactor code for authenticating messages
 // TODO: something better for players "db"
-// TODO: move code for managing active players to separate ns
-// TODO: move code for managing active games to separate ns
-// TODO: use "from" in messages for challenge-accepted, etc. (The p1
-// and p2 convention is extremely confusing)
 // TODO: WHAT ABOUT USERNAME COLLISIONS? (What if two copies of the
 // same bot log in or a player logs in twice?)
 // TODO: Use https
-// TODO: Refactor logic according to what we are doing, not when we
-// are doing it. For example, instead of `handleChallengeAccepted`,
-// have a `newGame` function.
+// TODO: log out inactive players
 
-function newGame (white, black) {
-  return { white: white,
-	   black: black,
-	   audience: [],
-	   state: Game.newGame(),
-	   history: []
-	 };
-}
+/* 
 
-function checkLogin (m, socket) {
-  console.log(`msg ${JSON.stringify(m)}`);
-  const playerToStats = JSON.parse(
-    fs.readFileSync(`${__dirname}/players`));
-  const info = playerToStats[m.username];
-  if (!info) {
-    console.log(`Player ${m.username} not found.`);
-  } else {
-    return m.password === info.password;
-  }
-}
+Minimum steps to testing an ML algorithm against random bot
+    1) Get app in playable state
+2     a) Finish refactor of active games
+2     b) Adapt random bot to new API
+1     c) Implement writing games to disc
+    2) Generate data set
+1     a) Adapt "watch" script to replay a game from the table
+0     b) Generate a few hundred games
+1   3) Feature extraction pipeline
+      a) From a game record, construct a list of states
+      b) Backpropagate rewards
+2   4) Build features (use functions of a state or a transition?)
+      a) Number of pips
+      b) "Expected number" of pips lost if pone plays greedy algorithm
+        i) Sum over lone men
+        ii) For each lone man, compute the number of opponent rolls that could hit him.
+      c) Number of pips with X men for X=1, X=2, X=3, X>=4
+    4) Training a simple model
+      No a) Can try to predict the probability of random bot 1 winning against random bot 2
+      or a') Can try to predict the observed discounted future rewards for a given transition
+0     b) From a game, generate triples (old state, new state, reward)
+1     c) Convert a triple to a feature vector and label
+0     c) Iterate over games, writing training set to disc
+1     d) Python script to train linear regression model
+    5) Test it out
+1     a) Adapt random bot to use the linear regression model
+        i) Let it compute feature values on a state
+        ii) Apply linear regression to get predicted values of new states
+        iii) Choose best new state
+0     b) Run many games, crunch the stats, inspect the games.
+    
 
-function handleLogin (m, socket) {
-  const token = Math.random().toString().substring(2);
-  playerToToken[m.username] = token;
-  console.log(`Gave token ${token} to ${m.username}`);
-  playerToSocket[m.username] = socket;
-  socket.emit('token', token);
-  io.emit('update-users-online', listPlayersOnline());
-} 
 
-function checkChallenge (m) {
-  const authentic = (playerToToken[m.p1] == m.token);
-  if (!authentic) {
-    console.log(
-      `Ignoring challenge because supplied token ${m.token} `
-	+ `for supposed user ${m.p1} does not `
-	+ `match ${JSON.stringify(playerToToken)}`
-    );
-  }
-  return (authentic && m.p1 != m.p2);
-}
 
-function handleChallenge (m) {
-  // If no socket for p2, should remove from playerToChallenge
-  playerToChallenge[m.p1] = m.p2;
-  tryEmit(m.p2, 'challenge', { p1: m.p1 });
-}
+Nice to have
+* Unit tests for ative-users and active-games
+* Use get-user fn that throws user not found exception instead of checking whether the user is null
+* SQLite tables for games etc.
+*/
 
-function checkChallengeAccepted (m) {
-  const valid = (playerToToken[m.p2]==m.token
-		 && playerToChallenge[m.p1]==m.p2);
-  if (!valid) {
-    console.log('Challenge accepted ignored');
-  }
-  return valid;
-}
-
-function handleChallengeAccepted (m, socket) {
-  playerToChallenge[m.p1] = null;
-  const gameId = Math.random().toString().substring(2);
-  games[gameId] = newGame(m.p1, m.p2);
-  playerToGame[m.p1] = gameId;
-  playerToGame[m.p2] = gameId;
-  // sending gameId busts cache
-  socket.emit('start-game', { gameId: gameId, player: "black" });
-  tryEmit(m.p1, 'start-game', { gameId: gameId, player: "white" });
-}
-
-const maxNextTurnRetries = 10;
-function nextTurnUntilLegalMoveExists (game, gameId) {
-  var retries = maxNextTurnRetries;
-  while (!Game.legalMoveExistsOrNextTurn(game.state)) {
-    retries -= 1;
-    if (retries <= 0) { throw "No more retries"; }
-    // games[gameId].state = toOldGameFormat(game);
-    sendGameState(game);
-    /*sendToPlayers(
-      toOldGameFormat(game),
-      'chat-message',
-      `Rolls to play are ${game.rollsToPlay}; no legal move`
-    );*/
-  }
-}
-
-function checkMoveMessage (m) {
-  console.log('received msg: ', m);
-  const game = games[m.gameId];
-  if (!game) {
-    console.log('Game not found');
-  } else {
-    const activeColor = game.state.active;
-    const activePlayer = game[activeColor];
-    const requiredToken = playerToToken[activePlayer];
-    const authentic = (m.token==requiredToken);
-    if (!authentic) {
-      console.log(`Want token ${requiredToken},`
-		  + `but got token ${m.token}`);
-    }
-    return authentic;
-  }
-}
-
-function handleMoveMessage (m) {
-  const game = games[m.gameId];
-  var moved, reasons;
-  game.history.push({
-    from: m.from,
-    to: m.to,
-    newState: deepCopy(game.state)
-  });
-  [moved, reasons] = Game.moveIfLegal(
-    game.state,
-    { from: m.from, to: m.to }
-  );
-  if (moved) {
-    games[m.gameId].state = game.state; // Wait, is this necessary?
-  } else {
-    console.log("Move is illegal because\n"
-		+ reasons.join("\n"));
-  }
-  var winner = null;
-  if (Game.activePlayerHasWon(game.state)) {
-    winner = game.state.active;
-    const gameCopy = deepCopy(game);
-    delete games[m.gameId];
-    sendGameOver(gameCopy, winner);
-  } else {
-    sendGameState(game);
-  }
-  nextTurnUntilLegalMoveExists(game, m.gameId);
-}
-
-function tryEmit (player, msgType, msgData) {
-  const socket = playerToSocket[player];
-  if (socket) {
-    console.log(
-      `Sending ${msgType} ${JSON.stringify(msgData)} to ${player}`);
-    socket.emit(msgType, msgData);
-  }
-  else { console.log(`No socket for ${player}`); }
-}
-
-function sendToPlayers(game, msgType, msgData) {
-  userNames = [game.white, game.black, ...game.audience];
-  userNames.forEach( user => {
-    tryEmit(user, msgType, msgData);
-  });
-}
-
-// Shouldn't need this. All messages should send username.
-// If the client doesn't known its username the server doesn't either.
-function tokenToPlayer (token) {
-  for (player in playerToToken) {
-    if (playerToToken[player]==token) { return player; }
-  }
-  console.log(`Couldn't find token ${token}`);
-}
 
 app.use(express.static('dist'));
 
@@ -200,50 +91,11 @@ app.get('/watch', function(req, res) {
   res.sendFile(`${__dirname}/dist/watchGame.html`);
 });
 
-function sendGameOver(game, winningColor) {
-  console.log("finished game", JSON.stringify(game),
-	      "winner was", winningColor);
-  const winningPlayer = game[winningColor];
-  const losingColor = (winningColor === "white" ? "black" : "white");
-  const losingPlayer = game[losingColor];
-  const data = fs.readFileSync(`${__dirname}/players`);
-  const playerToStats = JSON.parse(data);
-  playerToStats[winningPlayer].wins += 1;
-  playerToStats[losingPlayer].losses += 1;
-  fs.writeFileSync(`${__dirname}/players`,
-		   JSON.stringify(playerToStats));
-  game.winner = winningColor;
-  fs.appendFileSync('games-history',
-		    ",\n"+ JSON.stringify(game));
-  const gamesFile = fs.readFileSync(`${__dirname}/players`);
-  sendToPlayers(
-    game,
-    'game-over',
-    {
-      winner: game[winningColor],
-    }
-  );
-}
-
-function sendGameState(game) {
-  sendToPlayers(game, 'game-state', game.state);
-}
-
-function listPlayersOnline() {
-  const data = fs.readFileSync(`${__dirname}/players`);
-  const playerToStats = JSON.parse(data);
-  return [...Object.keys(playerToToken)].map(
-    player => ({
-      player: player,
-      wins: playerToStats[player].wins,
-      losses: playerToStats[player].losses
-    })
-  );
-}
 
 io.on('connection', function(socket) {
-
-  socket.on(
+  console.log('Connection!');
+  
+  /*socket.on(
     'chat-message',
     function(m){
       try {
@@ -255,8 +107,8 @@ io.on('connection', function(socket) {
 	console.log(err);
       }
     }
-  );
-  socket.on(
+  );*/
+  /*socket.on(
     'watch',
     m => {
       if ( m.userName ) {
@@ -267,61 +119,81 @@ io.on('connection', function(socket) {
 	}
       }
     }
-  );
+  );*/
   
   socket.on(
     'login',
     m => {
-      if (checkLogin(m, socket)) {
-	handleLogin(m, socket);
-      } else {
-	socket.emit('login-failed',null);
-      }
+      console.log('received login:', JSON.stringify(m));
+      login(socket, m, success => {
+	if (success) {
+	  io.emit(
+	    'active-users',
+	    listActiveUsers() // what should this do?
+	  );
+	} else {
+	  console.log('Login failed', JSON.stringify(err));
+	  socket.emit('login-failed', err);
+	}
+      });
     }
   );
+
   socket.on(
-    'request-players-online', // Should tighten this up
-    m => { io.emit('update-users-online', listPlayersOnline()); }
+    'logout',
+    m => {
+      console.log('received logout:', JSON.stringify(m));
+      logout(m.token);
+    }
   );
+
+  
+  socket.on(
+    'request-active-users',
+    m => { io.emit('active-users', listActiveUsers()); }
+  );
+  
   socket.on(
     'challenge',
     m => {
-      console.log('received challenge: ', m);
-      if (checkChallenge(m)) {
-	handleChallenge(m);
-      }
+      console.log('received challenge:', JSON.stringify(m));
+      challenge(m.token, m.to);
     }
   );
+
+  socket.on(
+    'cancel-challenge',
+    m => {
+      console.log('received cancel-challenge:', JSON.stringify(m));
+      cancelChallenge(m.token, m.to);
+    }
+  );
+
   socket.on(
     'challenge-accepted',
     m => {
-      console.log('received challenge-accepted: ', m);
-      if (checkChallengeAccepted(m)) {
-	handleChallengeAccepted(m, socket);
-      }
+      console.log('received challenge-accepted:', JSON.stringify(m));
+      const [p1, p2] = acceptChallenge(m.token, m.to);
+      newGame(p1,p2);
     }
   );
 
   socket.on(
     'challenge-declined',
     m => {
-      console.log('received challenge-declined', m);
-      if (playerToToken[m.p2]==m.token
-          && playerToChallenge[m.p1]==m.p2) {
-        playerToChallenge[m.p1] = null;
-        tryEmit(m.p1, 'challenge-declined', null);
-      } else { console.log('Challenge declined ignored'); }
+      console.log('received challenge-declined:', JSON.stringify(m));
+      declineChallenge(m.token, m.to);
     }
   );
   
-  socket.on('update-socket', token => { // when transitioning from the
+  /*socket.on('update-socket', token => { // when transitioning from the
   // ante-room to the game, need new socket
     var player = tokenToPlayer(token);
     playerToSocket[player] = socket;
     console.log(`Updated socket for ${player}`);
-  });
+  });*/
   
-  socket.on(
+  /*socket.on(
     'request-game-state',
     m => {
       console.log('received request-game-state',
@@ -333,17 +205,30 @@ io.on('connection', function(socket) {
 	console.log("Game not found");
       }
     }
-  );
-  
-  socket.on(
-    'move',
-    function (m) {
-      
-      if (checkMoveMessage(m)) {
-	handleMoveMessage(m);
-      }
+  );*/
+
+  socket.on('roll', m => {
+    console.log('received roll:', JSON.stringify(m));
+    try {
+      roll(m.token, m.gameId);
+    } catch (e) {
+      if (e.name == 'GameNotFound') {
+	console.log(e);
+      } else { throw e; }
     }
-  );
+  });
+  
+  socket.on('move', m => {
+    console.log('received move:', JSON.stringify(m));
+    try {
+      move(m.token, m.gameId, m.from, m.to);
+    } catch (e) {
+      if (e.name == 'GameNotFound'
+	  || e.name == 'IllegalMove') {
+	console.log(e);
+      } else { throw e; }
+    }
+  });
 });
 
 http.listen(3000, function(){
