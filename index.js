@@ -14,6 +14,8 @@ const { newGame,
 	roll,
 	move,
 	resign } = require('./active-games.js');
+const { connect,
+        query } = require('./sql-utils.js');
 
 // const Utils = require('./front/utils.js'); WHY NOT??
 
@@ -91,6 +93,15 @@ app.get('/watch', function(req, res) {
   res.sendFile(`${__dirname}/dist/watchGame.html`);
 });
 
+app.get('/replay', function(req, res) {
+  res.sendFile(`${__dirname}/dist/replayGame.html`);
+});
+
+
+
+app.get('/game', function(req, res) {
+  
+});
 
 io.on('connection', function(socket) {
   console.log('Connection!');
@@ -120,6 +131,20 @@ io.on('connection', function(socket) {
       }
     }
   );*/
+
+  socket.on('replay-game', gameId => {
+    const db = connect();
+    const sql = `SELECT history FROM games WHERE id=${gameId}`;
+    query(db, sql)
+      .then( rows => {
+	console.log(rows);
+	const history = JSON.parse(rows[0].history);
+	socket.emit('history', history);
+	//res.setHeader('Content-Type', 'application/json');
+	//res.end(rows[0].history);
+      });
+    db.close();
+  });
   
   socket.on(
     'login',

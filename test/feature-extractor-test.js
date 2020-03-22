@@ -1,4 +1,6 @@
 const F = require('../ml/feature-extractor.js');
+const L = require('../ml/feature-lib.js');
+const G = require('../game.js');
 
 const history = [
   ['roll', [1,2]],
@@ -14,8 +16,25 @@ const history = [
 ];
 
 const expectedRewards = [0, 0, -2, 0, -24, 0];
+const expectedSDFR = [-2, -4, -8, -12, -24, 0];
 
 const transitions = F.buildTransitions(history);
 
+F.propagateRewards(transitions, 0.5);
+
 console.log('Expected rewards:', expectedRewards);
 console.log('Actual rewards:', transitions.map( t => t.reward ));
+
+console.log('Expected sdfr:', expectedSDFR);
+console.log('Actual rewards:', transitions.map( t => t.sdfr ));
+
+transitions.forEach(L.extractFeatures);
+
+console.log(transitions[0]);
+
+
+//console.log(F.multiplicities(G.newGame().tokens));
+
+//console.log(F.getVWExamples(history));
+
+//F.writeVWTrainingSet([6], 'train.json');

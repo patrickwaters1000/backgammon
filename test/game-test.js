@@ -216,26 +216,26 @@ gameOverCases = [
     testing: "white has won",
     tokens: { 2: -4 },
     active: "white",
-    expected: true
+    expected: "white"
   },
   {
     testing: "white has not won",
     tokens: { 24: 1, 2: -4 },
     active: "white",
-    expected: false
+    expected: null
   },
   {
     testing: "black has won",
     tokens: { 24: 1 },
     active: "black",
-    expected: true
+    expected: "black"
   }
 ];
 gameOverCases.forEach( data => {
   const state = makeGame(
     data.tokens, [0,0], data.active
   );
-  const result = Game.isGameOver(state);
+  const result = Game.winner(state);
   if (result != data.expected) {
     console.log(`\nFailed testing ${data.testing}\n`);
   }

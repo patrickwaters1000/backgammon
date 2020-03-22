@@ -92,6 +92,7 @@ exports.roll = function (token, gameId) {
   const game = getGame(gameId);
   const state = game.state;
   const dice = Game.roll(state);
+  Game.nextTurnIfNoMove(state);
   game.history.push(['roll', dice]);
   send(game, 'roll', {
     gameId: gameId,
@@ -107,6 +108,7 @@ exports.move = function (token, gameId, from, to) {
   const state = game.state;
   const move = { from: from, to: to };
   Game.move(state, move);
+  Game.nextTurnIfNoMove(state);
   game.history.push(['move',[from, to]]);
   send(game, 'move', {
     gameId: gameId,

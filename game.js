@@ -1,7 +1,19 @@
+/*
+Exports
+* newGame
+* hasLegalMove -- wrap hasLegalMove with color reversing
+* legalMoves -- slower that hasLegalMove; finds all
+* move -- combines wraps tryMove with color reversing. tryMove composes validateMove, and move
+nextTurn -- advances active player, null dice and empty rollsToPlay
+setDice -- sets dice to given value, resets rollsToPlay, calls nextTurn if required.
+roll -- generates random dice, sets rollsToPlay, returns deep copy of dice
+winner
+
+*/
+
 const { range,
 	reversed,
-	deepCopy
-      } = require('./utils.js');
+	deepCopy } = require('./utils.js');
 
 class IllegalMove extends Error {
   constructor (msg, reasons) {
@@ -234,9 +246,6 @@ function nextTurn (s) {
 function tryMove (s, m) {
   validateMove(s, m);
   move(s, m);
-  if (!hasLegalMove(s)) {
-    nextTurn(s);
-  }
 }
 
 function reverseMove(m) {
@@ -293,35 +302,37 @@ exports.move = function (s, m) {
 exports.nextTurn = nextTurn;
 
 // Used by bots
-function setDice (s, dice) {
-  s.dice = dice;
-  setRollsToPlay(s);
-  if (!hasLegalMove(s)) {
-    nextTurn(s);
-    return 'lost-roll'; // return value used only in ml feature extraction for determining whether a reward should be counted for losing the roll.
-  }
-}
+
 
 exports.setDice = function (s, dice) {
+  s.dice = dice;
+  setRollsToPlay(s);
+};
+/*  function (s, dice) {
   return withReversedState(
     s_ => setDice(s_, dice),
     s
   );
-}
+}*/
 
-function roll (s) {
-  rollDice(s);
-  setRollsToPlay(s);
-  const dice = deepCopy(s.dice);
+function nextTurnIfNoMove (s) {
   if (!hasLegalMove(s)) {
     nextTurn(s);
   }
-  return dice;
 }
 
+exports.nextTurnIfNoMove = function (s) {
+  return withReversedState(nextTurnIfNoMove, s);
+};
+
 exports.roll = function (s) {
+  rollDice(s);
+  setRollsToPlay(s);
+  return deepCopy(s.dice);
+};
+/*function (s) {
   return withReversedState(roll, s);
-}
+}*/
 
 exports.winner = function (s) {
   if (hasWon(s)) {
@@ -329,7 +340,7 @@ exports.winner = function (s) {
   } else {
     reverseState(s);
     if (hasWon(s)) {
-      return s.active;
+      return (s.active=='white' ? 'black' : 'white');
     }
     reverseState(s);
   }

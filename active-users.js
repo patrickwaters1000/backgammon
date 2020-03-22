@@ -67,6 +67,7 @@ function authenticate (name, password, callback) {
       callback(authentic);
     }
   );
+  //db.close();
 }
 
 exports.login = (socket, m, callback) => {

@@ -91,6 +91,7 @@ socket.on(
   'roll', m => {
     console.log("Received roll", JSON.stringify(m));
     Game.setDice(state, m.dice);
+    Game.nextTurnIfNoMove(state);
     console.log('State:', JSON.stringify(state));
     if (gameId == m.gameId
 	&& state.active == color) {
@@ -108,6 +109,7 @@ socket.on(
   'move', m => {
     console.log("Received move", JSON.stringify(m));
     Game.move(state, m);
+    Game.nextTurnIfNoMove(state);
     console.log('State:', JSON.stringify(state));
     if (gameId == m.gameId
 	&& state.active == color) {

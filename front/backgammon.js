@@ -9,38 +9,6 @@ import { range } from "./utils.js";
 // var socket = io();
 
 
-function makePip() {
-  return React.createElement(Pip, {
-      x: 100,
-      y: 200,
-      isUpright: true,
-      controller: "black",
-      numTokens: 3,
-      selectedToken: 0
-  });
-}
-
-/*
-class Board extends React.Component {
-
-  render () {
-    const p = this.props;
-    return React.createElement(
-      "svg",
-      { height: boardHeight, width: boardWidth },
-      React.createElement(
-	"rect",
-	{ height: boardHeight, width: boardWidth, fill: boardColor }
-      ),
-      makePip()
-    );
-  }
-}*/
-
-
-//console.log(dieSpotCenters);
-
-
 // Additional global consts
 /*
 let params = new URLSearchParams(window.location.search);
