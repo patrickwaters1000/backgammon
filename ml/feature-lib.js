@@ -27,13 +27,11 @@ function winReward (state) {
   return (winner(state) == 'white' ? 50
 	  : winner(state) == 'black' ? -50
 	  : 0);
-
 }
-
 
 function bucketize(rate, value) {
   if (value == 0) { return "0"; }
-  const sign = (value > 0 ? "-" : "+");
+  const sign = (value > 0 ? "+" : "-");
   const logVal = Math.log(Math.abs(value));
   const bucket = Math.floor(logVal / Math.log(rate));
   return `${sign}${bucket}`;
@@ -41,8 +39,6 @@ function bucketize(rate, value) {
 
 function extractPipGain (transition) {
   const { from, to } = transition;
-  //console.log(JSON.stringify(from));
-  //console.log(JSON.stringify(to));
   const pipGain = (pipScore(to) + rollScore(to)
 		   - pipScore(from) - rollScore(from));
   transition.features["pipGain"] = bucketize(2, pipGain);
@@ -54,8 +50,8 @@ function loneMenHazard (state, player) {
     if (num != loneMan) {
       return acc;
     } else {
-      const toGo = (num > 0 ? 25-pip : pip);
-      return acc - toGo;
+      const toLose = (num > 0 ? pip : 25-pip);
+      return acc + toLose;
     }
   });
 }

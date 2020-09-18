@@ -3,7 +3,8 @@ var express = require('express');
 var app = express();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
-const { login,
+const { getUser,
+	login,
 	logout,
 	listActiveUsers,
 	challenge,
@@ -13,7 +14,8 @@ const { login,
 const { newGame,
 	roll,
 	move,
-	resign } = require('./active-games.js');
+	resign,
+        watchGame } = require('./active-games.js');
 const { connect,
         query } = require('./sql-utils.js');
 
@@ -118,19 +120,12 @@ io.on('connection', function(socket) {
 	console.log(err);
       }
     }
-  );*/
-  /*socket.on(
-    'watch',
-    m => {
-      if ( m.userName ) {
-	playerToSocket[m.userName] = socket;
-	gameId = Object.keys(games)[0];
-	if (games[gameId]) {
-	  games[gameId].audience.push(m.userName);
-	}
-      }
-    }
-  );*/
+    );*/
+
+  socket.on('watch', token => {
+    user = getUser(token);
+    watchGame(user);
+  });
 
   socket.on('replay-game', gameId => {
     const db = connect();
@@ -157,8 +152,8 @@ io.on('connection', function(socket) {
 	    listActiveUsers() // what should this do?
 	  );
 	} else {
-	  console.log('Login failed', JSON.stringify(err));
-	  socket.emit('login-failed', err);
+	  console.log('Login failed');
+	  socket.emit('login-failed');
 	}
       });
     }

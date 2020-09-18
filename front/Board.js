@@ -14,20 +14,35 @@ import { pipHalfWidth,
 	 dieWidth
        } from "./dimensions.js";
 
-function whoControllsPip(s, pip) {
-  return ( s.tokens[pip] > 0 ? "white"
-	   : s.tokens[pip] < 0 ? "black"
+function whoControllsPip(p, pip) {
+  return ( p.tokens[pip] > 0 ? "white"
+	   : p.tokens[pip] < 0 ? "black"
 	   : null );
 }
 
+function isTokenOnBarSelected (p) {
+  let t = p.selectedToken; 
+  if (t) {
+    return (p.active == "white"
+	    ? t.pipIndex==0
+	    : t.pipIndex==25);
+  } else {
+    return false;
+  }
+}
+// Board has no state, it is a subcomponent of a top level Game class
+// which does have state. The board's properties are those of
+// game.js/newGame() and functions for handling the following events:
+// 1) clickPip(pipIndex)
+// 2) clickToken(pipIndex, numTokenOnPip)
+// 3) clickDice()
+// Finally, at least one more property enhancing how the board should
+// be rendered:
+// 4) selectedToken (has keys pipIndex, numTokenOnPip)
+
+// NOTE: clickDice is currently not passed on to the Dice component.
+
 export default class Board extends React.Component {
-  /*constructor(props) {
-    super(props);
-    this.state = newGame();
-    props.handle = this;
-    // backgammonBoard = this;
-    console.log("Initial state:",JSON.stringify(this.state));
-  }*/
   
   getPipBasepointX (i) {
     if (i > 12) {
@@ -50,13 +65,14 @@ export default class Board extends React.Component {
       isUpright: i > 12,
       numTokens: numTokens,
       controller: controller,
-      selectedToken: (p.selectedToken && (p.selectedToken.pipNumber==i)
+      selectedToken: ((p.selectedToken
+		       && (p.selectedToken.pipIndex==i))
                       ? p.selectedToken.numTokenOnPip
                       : null),
       clickToken: numTokenOnPip => {
-        this.setState(clickToken(p, i, numTokenOnPip));
+        this.clickToken(i, numTokenOnPip);
       },
-      clickPip: () => { clickPip(p, i); }
+      clickPip: () => { this.clickPip(i); }
     };
   }
 
@@ -65,35 +81,39 @@ export default class Board extends React.Component {
     const pips = range(1,25).map(
       i => React.createElement(Pip, this.getPipProperties(i))
     );
-    //console.log("state", JSON.stringify(p));
+    
     return React.createElement(
       "svg",
       { height: boardHeight, width: boardWidth },
       React.createElement( // board background
         "rect",
-        { x: 0, y: 0, width: boardWidth, height: boardHeight, fill: boardColor }
+        { x: 0,
+	  y: 0,
+	  width: boardWidth,
+	  height: boardHeight,
+	  fill: boardColor }
       ),
       React.createElement(
         BarArea,
-        { whiteTokens: p.tokens[0],
+        {
+	  whiteTokens: p.tokens[0],
           blackTokens: -p.tokens[25],
-          selectedToken: (p.selectedToken
-                          && ((player == "white" && p.selectedToken.pipNumber==0)
-                              || (player == "black" && p.selectedToken.pipNumber==25))
+          selectedToken: (isTokenOnBarSelected(p)
                           ? p.selectedToken.numTokenOnPip
                           : null),
           clickToken: numTokenOnPip => {
-            this.setState(clickToken(p,
-                                     (player=="white" ? 0 : 25),
-                                     numTokenOnPip));
-          }}
+	    let pipIndex = (p.active=="white" ? 0 : 25);
+            this.clickToken(pipIndex, numTokenOnPip);
+          }
+	}
       ),
       React.createElement(
         HomeArea,
         { whiteTokens: 0, // FIX THIS
           blackTokens: 0,
           clickPip: () => {
-            clickPip(p, (player=="white" ? 25 : 0)); // CAN DELETE?
+	    let pipIndex = (p.active=="white" ? 25 : 0)
+            this.clickPip(pipIndex); // CAN DELETE?
           }}
       ),
       React.createElement(

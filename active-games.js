@@ -130,3 +130,13 @@ exports.move = function (token, gameId, from, to) {
 exports.resign = function (token, gameId) {
   return null; // TODO
 }
+
+// TODO: Support specifying which game to watch
+exports.watchGame = function (user) {
+  let gameId = Object.keys(games)[0];
+  let game = games[gameId]
+  if (game) {
+    game.audience.push(user);
+    user.socket.emit('game-state', game.state);
+  }
+};

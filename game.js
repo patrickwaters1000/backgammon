@@ -11,6 +11,11 @@ winner
 
 */
 
+// Known bug: in the current state, it is allowed to move
+// with the smaller die, into a position where it is illegal
+// to move with the larger die. I think the official rules
+// are that you must move the larger die if you can.
+
 const { range,
 	reversed,
 	deepCopy } = require('./utils.js');

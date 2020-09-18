@@ -40,13 +40,17 @@ export default class Dice extends React.Component {
   // props: values[2], x, y
   render () {
     const p = this.props;
-    const dice = p.values.map( (v, i) => React.createElement(
-      Die,
-      { x: p.x + i * dieWidth, y: p.y, value: v }
-    ));
-    return React.createElement(
-      'g', null,
-      ...dice
-    );
+    if (p.values) {
+      const dice = p.values.map( (v, i) => React.createElement(
+	Die,
+	{ x: p.x + i * dieWidth, y: p.y, value: v }
+      ));
+      return React.createElement(
+	'g', null,
+	...dice
+      );
+    } else {
+      return React.createElement('g', null, []);
+    }
   }
 }

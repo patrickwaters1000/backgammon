@@ -21,6 +21,8 @@ function getUser(id) {
   return user;
 }
 
+exports.getUser = getUser;
+
 function connect () {
   let db = new sqlite.Database(
     './db/primary.db',
@@ -135,4 +137,4 @@ exports.declineChallenge = (token2, name1) => {
   if (drop(user1.challenges, user2.name)) {
     user1.socket.emit('challenge-declined', { from: user2.name });
   }
-};
+};  
