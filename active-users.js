@@ -88,6 +88,11 @@ exports.login = (socket, m, callback) => {
   );
 };
 
+exports.updateSocket = (token, socket) => {
+  activeUsers[token].socket = socket;
+  console.log(`Updated socket for token ${token}`);
+}
+
 // If a user is logged out, we must abort all their games, but this
 // isn't the right place in the code for that.
 exports.logout = (token) => {
@@ -105,10 +110,13 @@ exports.logout = (token) => {
 // For bots in particular, it makes sense to allow challenges even if
 // both players already have active games. Currently, we even allow
 // multiple challenges from p1 to p2.
+
+// TODO: Do not forward repeated challenges from A to B.
 exports.challenge = (token1, name2) => {
   const user1 = getUser(token1);
   const user2 = getUser(userToToken[name2]);
   user1.challenges.push(user2.name);
+  console.log(`Forwarding challenge to ${name2}`);
   user2.socket.emit('challenge', { from: user1.name });
 };
 

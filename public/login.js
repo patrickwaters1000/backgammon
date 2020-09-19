@@ -5,7 +5,7 @@ socket.on(
   msg => {
     console.log(`Received token ${msg}`);
     const username = document.getElementById("usernameInput").value;
-    window.location.href =`ante-room-2.html?token=${msg}&userName=${username}`;
+    window.location.href =`anteRoom.html?token=${msg}&userName=${username}`;
   }
 );
 

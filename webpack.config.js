@@ -2,8 +2,9 @@ const path = require('path');
 const HtmlWebPackPlugin = require("html-webpack-plugin");
 
 //const page = 'backgammon';
-const page = 'watchGame';
+//const page = 'watchGame';
 //const page = 'replayGame';
+const page = 'anteRoom';
 
 module.exports = {
   entry: `./front/${page}.js`,

@@ -57,11 +57,13 @@ socket.on('active-users', m => {
   if (gameId == null && challenge) {
     const players = m.filter( player => (player != name));
     const pone = randomChoice(players);
-    socket.emit(
-      'challenge',
-      { to: pone,
-	token: token }
-    );
+    if (pone) {
+      socket.emit(
+	'challenge',
+	{ to: pone,
+	  token: token }
+      );
+    }
   }
 });
 

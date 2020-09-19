@@ -1,76 +1,47 @@
+import React, { Component } from "react";
+import ReactDOM from "react-dom";
+import { deepCopy } from "../utils.js";
+import io from 'socket.io-client';
+
 const params = new URLSearchParams(window.location.search);
 const token = params.get("token")
 
 var socket = io();
 
-socket.emit(
-  'update-socket', // after coming to this page, the server still has a connection to the login page
-  token
-);
+// After coming to this page, the server still has a connection to the
+// login page.
+socket.emit('update-socket', token);
 
-// React expects state to be reassigned, not mutated
-function deepCopy(state) {
-    return JSON.parse(JSON.stringify(state));
-}
-
-function assoc (obj, k, v) {
-  newObj = deepCopy(obj);
-  newObj[k] = v;
-  return newObj;
-}
-
-
-/* ---------------------------------------------/
-/                   Logic                       /
-/  --------------------------------------------*/
-
-
-function login (state, userName) {
-  console.log("Attempting login");
-  socket.emit('login', {
-    userName: userName,
-    token: token
-  });
-  console.log("We attempted the login");
-  const newState = deepCopy(state);
-  newState.userName = userName;
-  return newState;
-}
-
-/*
-function updatePlayers (state, msg) {
-  const newState = deepCopy(state);
-  newState.players = msg;
-  return newState;
-}*/
-
-function sendChallenge (state, player) {
+function sendChallenge (state, toUserName) {
   if (player !== state.player
       && window.confirm(`Challenge ${player}?`)) {
     socket.emit(
       'challenge',
-      { p1: state.userName, p2: player, token: token }
+      { token: token, to: toUserName }
     );
     const newState = deepCopy(state);
-    newState.sentChallenge = { player: player, status: "pending" };
+    newState.sentChallenge = {
+      sentTo: toUserName, status: "pending"
+    };
     return newState;
   } else { return state; }
 }
 
-function receiveChallenge (state, msg) {
-  if (window.confirm(`You are challenged by ${msg.p1}. Do you accept?`)) {
+function receiveChallenge (state, fromUserName) {
+  if (window.confirm(
+    `You are challenged by ${fromUserName}. Do you accept?`)) {
     console.log("You accepted the challenge. Challenge message:", msg);
     socket.emit(
       'challenge-accepted',
-      { p1: msg.p1, p2: state.userName, token: token }
+      { token: token, to: fromUserName }
     );
   } else {
     socket.emit(
       'challenge-declined',
-      { p1: msg.p1, p2: state.userName, token: token }
+      { token: token, to: fromUserName }
     );
   }
-  return state; // The server will immenently redirect us to the game,
+  return state; // The server will imminently redirect us to the game,
   // so doesn't really matter what we return here.
 }
 
@@ -99,32 +70,33 @@ class TitleArea extends React.Component {
   }
 }
 
-
 class PlayersOnline extends React.Component {
-  // props: challengeFn (fn), players, userName
+  // props:
+  // challengeFn,
+  // players,
+  // userName
 
   tableRows () {
     const p = this.props;
-    return p.players.map( player => React.createElement(
+    return p.players.map( userName => React.createElement(
       "tr", null,
       React.createElement(
         "td",
-        ((!p.canSendChallenge || player.player===p.userName)
+        ((!p.canSendChallenge
+	  || userName===p.userName)
          ? null
          : {
            className: "blueHover",
-           onClick: () => { p.challengeFn(player); },
+           onClick: () => { p.challengeFn(userName); },
          }
         ),
-        player.player),
-      React.createElement("td", null, player.wins),
-      React.createElement("td", null, player.losses)
+        userName),
+      React.createElement("td", null, 0), // wins
+      React.createElement("td", null, 0) // losses
     ));
   }
 
   render() {
-    console.log(`Rendering players online with state ${JSON.stringify(this.props.players)}`);
-
     return React.createElement(
       "div", { className: "flexGrow", style: { width: "100%" } },
       React.createElement(
@@ -133,9 +105,12 @@ class PlayersOnline extends React.Component {
           "thead", null,
           React.createElement(
             "tr", null,
-            React.createElement("th", { style: { width: "50%" }}, "Player"),
-            React.createElement("th", { style: { width: "25%" }}, "Wins"),
-            React.createElement("th", { style: { width: "25%" }}, "Losses")
+            React.createElement(
+	      "th", { style: { width: "50%" }}, "Player"),
+            React.createElement(
+	      "th", { style: { width: "25%" }}, "Wins"),
+            React.createElement(
+	      "th", { style: { width: "25%" }}, "Losses")
           )
         ),
         React.createElement(
@@ -147,11 +122,18 @@ class PlayersOnline extends React.Component {
   }
 }
 
+function canSendChallenge (s) {
+  return (s.userName
+	  && (!s.sentChallenge
+	      || s.sentChallenge.status !== "pending"));
+}
+
 class ChallengeStatus extends React.Component {
-  // props: player, status
+  // props:
+  // player,
+  // status
   render () {
     const p = this.props;
-    console.log(`Rendering ChallengeStatus with props ${JSON.stringify(p)}`);
     const style = { color: "red" };
     const msg = (p.status == "pending"
                  ? `Waiting for ${p.player} to accept your challenge`
@@ -160,7 +142,6 @@ class ChallengeStatus extends React.Component {
     return React.createElement("p", { style: style }, msg);
   }
 }
-
 
 class Page extends React.Component {
   // state: players, sentChallenge ( .player, .status )
@@ -171,7 +152,8 @@ class Page extends React.Component {
       sentChallenge: null,
       userName: params.get("userName") // may very well be `null`
     };
-    socket.on('update-users-online', msg => {
+    
+    socket.on('active-users', msg => {
       const newState = deepCopy(this.state);
       newState.players = msg;
       this.setState(newState);
@@ -179,11 +161,11 @@ class Page extends React.Component {
     });
     socket.on('challenge', msg => {
       console.log(`Received challenge ${JSON.stringify(msg)}`);
-      this.setState(receiveChallenge(this.state, msg));
+      this.setState(receiveChallenge(this.state, msg.from));
     });
     socket.on('challenge-declined', msg => {
       console.log(`Received challenge-declined ${JSON.stringify(msg)}`);
-      this.setState(challengeDeclined(this.state, msg));
+      this.setState(challengeDeclined(this.state));
     });
     socket.on('start-game', msg => {
       window.location.href =`backgammon.html?game=${msg.gameId}&player=${msg.player}&token=${token}&username=${params.get("userName")}`;
@@ -191,24 +173,27 @@ class Page extends React.Component {
   }
 
   render() {
+    let s = this.state;
     var children = [
       React.createElement(TitleArea),
       React.createElement(
         PlayersOnline,
         {
-          canSendChallenge: (this.state.userName
-                             && (!this.state.sentChallenge
-                                 || this.state.sentChallenge.status !== "pending")),
-          userName: this.state.userName,
-          players: this.state.players,
-          challengeFn: player => { this.setState(sendChallenge(this.state, player.player)); }
+          canSendChallenge: canSendChallenge(s),
+          userName: s.userName,
+          players: s.players,
+          challengeFn: player => {
+	    this.setState(
+	      sendChallenge(s, player.player));
+	  }
         })
     ];
-    if (this.state.sentChallenge) {
+    if (s.sentChallenge) {
       children.push(
         React.createElement(
           ChallengeStatus,
-          { player: this.state.sentChallenge.player, status: this.state.sentChallenge.status }));
+          { player: s.sentChallenge.player,
+	    status: s.sentChallenge.status }));
     }
     
     return React.createElement(

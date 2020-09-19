@@ -6,6 +6,7 @@ var io = require('socket.io')(http);
 const { getUser,
 	login,
 	logout,
+	updateSocket,
 	listActiveUsers,
 	challenge,
 	cancelChallenge,
@@ -88,7 +89,7 @@ Nice to have
 app.use(express.static('dist'));
 
 app.get('/', function(req, res) {
-  res.sendFile(`${__dirname}/public/login.html`);
+  res.sendFile(`${__dirname}/dist/login.html`);
 });
 
 app.get('/watch', function(req, res) {
@@ -167,7 +168,7 @@ io.on('connection', function(socket) {
     }
   );
 
-  
+  // TODO: Only respond to the sender.
   socket.on(
     'request-active-users',
     m => { io.emit('active-users', listActiveUsers()); }
@@ -205,13 +206,11 @@ io.on('connection', function(socket) {
       declineChallenge(m.token, m.to);
     }
   );
-  
-  /*socket.on('update-socket', token => { // when transitioning from the
-  // ante-room to the game, need new socket
-    var player = tokenToPlayer(token);
-    playerToSocket[player] = socket;
-    console.log(`Updated socket for ${player}`);
-  });*/
+
+  // When transitioning between pages, the user gets a new socket.
+  socket.on('update-socket', token => { 
+    updateSocket(token, socket);
+  });
   
   /*socket.on(
     'request-game-state',
