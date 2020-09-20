@@ -16,7 +16,6 @@ console.log("argv", JSON.stringify(argv));
 
 var token = null;
 var gameId = null;
-var state = null;
 var color = null;
 var mode = null; // whether the bot is in a game 
 // currently assuming player = black
@@ -31,8 +30,8 @@ function randomChoice (choices) {
   }
 }
 
-function randomMove () {
-  const moves = Game.legalMoves(state);
+function randomMove (gameState) {
+  const moves = Game.legalMoves(gameState);
   console.log('candidate moves:', JSON.stringify(moves));
   const move = randomChoice(moves);
   if (move) {
@@ -78,54 +77,28 @@ socket.on('challenge', m => {
   }
 });
 
-socket.on('new-game', m => {
+socket.on('game-info', m => {
   if (!gameId) {
-    console.log('New game:', JSON.stringify(m));
+    console.log('Game info:', JSON.stringify(m));
     gameId = m.gameId;
-    state = Game.newGame();
-    console.log('New game state:', state);
     color = (m.white == name ? 'white' : 'black');
-    if (state.active == color) {
-      socket.emit('roll', { token: token, gameId: gameId });
-    }
   }
 });
 
-socket.on(
-  'roll', m => {
-    console.log("Received roll", JSON.stringify(m));
-    Game.setDice(state, m.dice);
-    Game.nextTurnIfNoMove(state);
-    console.log('State:', JSON.stringify(state));
-    if (gameId == m.gameId
-	&& state.active == color) {
-      if (!state.dice) {
-	console.log('Sending roll');
-	socket.emit('roll', { token: token, gameId: gameId });
-      } else {
-	randomMove();
-      }
+socket.on('game-state', m => {
+  if (m.gameId != gameId) {
+    console.log('Unexpected game id', m.gameId);
+  }
+  if (gameId == m.gameId
+      && m.state.active == color) {
+    if (!m.state.dice) {
+      console.log('Sending roll');
+      socket.emit('roll', { token: token, gameId: gameId });
+    } else {
+      randomMove(m.state);
     }
   }
-);
-
-socket.on(
-  'move', m => {
-    console.log("Received move", JSON.stringify(m));
-    Game.move(state, m);
-    Game.nextTurnIfNoMove(state);
-    console.log('State:', JSON.stringify(state));
-    if (gameId == m.gameId
-	&& state.active == color) {
-      if (!state.dice) {
-	socket.emit('Sending roll');
-	socket.emit('roll', { token: token, gameId: gameId });
-      } else {
-	randomMove();
-      }
-    }
-  }
-);
+});
 
 socket.on(
   'game-over', m => {

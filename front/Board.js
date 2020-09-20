@@ -40,8 +40,6 @@ function isTokenOnBarSelected (p) {
 // be rendered:
 // 4) selectedToken (has keys pipIndex, numTokenOnPip)
 
-// NOTE: clickDice is currently not passed on to the Dice component.
-
 export default class Board extends React.Component {
   
   getPipBasepointX (i) {
@@ -70,9 +68,9 @@ export default class Board extends React.Component {
                       ? p.selectedToken.numTokenOnPip
                       : null),
       clickToken: numTokenOnPip => {
-        this.clickToken(i, numTokenOnPip);
+        p.clickToken(i, numTokenOnPip);
       },
-      clickPip: () => { this.clickPip(i); }
+      clickPip: () => { p.clickPip(i); }
     };
   }
 
@@ -103,7 +101,7 @@ export default class Board extends React.Component {
                           : null),
           clickToken: numTokenOnPip => {
 	    let pipIndex = (p.active=="white" ? 0 : 25);
-            this.clickToken(pipIndex, numTokenOnPip);
+            p.clickToken(pipIndex, numTokenOnPip);
           }
 	}
       ),
@@ -113,14 +111,16 @@ export default class Board extends React.Component {
           blackTokens: 0,
           clickPip: () => {
 	    let pipIndex = (p.active=="white" ? 25 : 0)
-            this.clickPip(pipIndex); // CAN DELETE?
+            p.clickPip(pipIndex);
           }}
       ),
       React.createElement(
         Dice,
         { x: homeWidth / 2 - dieWidth,
 	  y: boardHeight / 2 - dieWidth / 2,
-	  values: p.dice }
+	  values: p.dice,
+	  clickDice: p.clickDice
+	}
       ),
       ...pips
     );

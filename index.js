@@ -49,19 +49,11 @@ Nice to have
 app.use(express.static('dist'));
 
 app.get('/', function(req, res) {
-  res.sendFile(`${__dirname}/dist/anteRoom.html`);
-});
-
-app.get('/watch', function(req, res) {
-  res.sendFile(`${__dirname}/dist/watchGame.html`);
+  res.sendFile(`${__dirname}/dist/backgammon.html`);
 });
 
 app.get('/replay', function(req, res) {
   res.sendFile(`${__dirname}/dist/replayGame.html`);
-});
-
-app.get('/game', function(req, res) {
-  // TODO
 });
 
 io.on('connection', function(socket) {
@@ -134,26 +126,7 @@ io.on('connection', function(socket) {
     console.log('received challenge-declined:', JSON.stringify(m));
     declineChallenge(m.token, m.to);
   });
-
-  // When transitioning between pages, the user gets a new socket.
-  socket.on('update-socket', token => { 
-    updateSocket(token, socket);
-  });
   
-  /*socket.on(
-    'request-game-state',
-    m => {
-      console.log('received request-game-state',
-		  JSON.stringify(m));
-      const game = games[m.gameId];
-      if (game) {
-	socket.emit('game-state', game.state);
-      } else {
-	console.log("Game not found");
-      }
-    }
-  );*/
-
   socket.on('roll', m => {
     console.log('received roll:', JSON.stringify(m));
     try {

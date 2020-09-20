@@ -37,7 +37,11 @@ export default class HomeArea extends React.Component {
 	  width: homeWidth,
 	  height: boardHeight,
 	  fill: homeColor,
-	  onClick: p.clickPip }
+	  onClick: () => {
+	    console.log("Hello");
+	    p.clickPip();
+	  }
+	}
       ),
       ...tokens
     );

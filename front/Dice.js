@@ -28,7 +28,7 @@ class Die extends React.Component {
         { x: p.x, y: p.y,
           height: dieWidth, width: dieWidth,
           fill: "#ffffff", stroke: "#000000",
-          //onClick: clickDice
+          onClick: p.clickDice
         }
       ),
       ...this.getSpots()
@@ -40,17 +40,20 @@ export default class Dice extends React.Component {
   // props: values[2], x, y
   render () {
     const p = this.props;
-    if (p.values) {
-      const dice = p.values.map( (v, i) => React.createElement(
-	Die,
-	{ x: p.x + i * dieWidth, y: p.y, value: v }
-      ));
-      return React.createElement(
-	'g', null,
-	...dice
-      );
-    } else {
-      return React.createElement('g', null, []);
-    }
+    let values = p.values || [0, 0];
+    const dice = values.map( (v, i) => React.createElement(
+      Die,
+      {
+	x: p.x + i * dieWidth,
+	y: p.y,
+	value: v,
+	clickDice: p.clickDice
+      }
+    ));
+    return React.createElement(
+      'g', null,
+      ...dice
+    );
+
   }
 }

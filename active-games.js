@@ -61,6 +61,9 @@ function send(game, msg, data) {
   //console.log('Sending game:', JSON.stringify(game));
   const users = [game.white, game.black, ...game.audience];
   users.forEach( user => {
+    console.log((`Sending to ${user.name} `
+		 + `msg ${msg} `
+		 + `data ${JSON.stringify(data)}`));
     user.socket.emit(msg, data);
   });		 
 }
@@ -79,13 +82,15 @@ exports.newGame = function (user1, user2) {
     winner: null
   };
   games[id] = game;
-  send(
-    game,
-    'new-game',
-    { gameId: id,
-      white: user1.name,
-      black: user2.name }
-  );
+  send(game, 'game-info', {
+    gameId: id,
+    white: user1.name,
+    black: user2.name
+  });
+  send(game, 'game-state', {
+    gameId: id,
+    state: state
+  });
 };
 
 exports.roll = function (token, gameId) {
@@ -94,9 +99,9 @@ exports.roll = function (token, gameId) {
   const dice = Game.roll(state);
   Game.nextTurnIfNoMove(state);
   game.history.push(['roll', dice]);
-  send(game, 'roll', {
+  send(game, 'game-state', {
     gameId: gameId,
-    dice: dice,
+    state: state,
   });
 };
 
@@ -110,9 +115,9 @@ exports.move = function (token, gameId, from, to) {
   Game.move(state, move);
   Game.nextTurnIfNoMove(state);
   game.history.push(['move',[from, to]]);
-  send(game, 'move', {
+  send(game, 'game-state', {
     gameId: gameId,
-    ...move
+    state: state
   });
   console.log('State:', JSON.stringify(game.state));
   winner = Game.winner(state);
@@ -137,6 +142,10 @@ exports.watchGame = function (user) {
   let game = games[gameId]
   if (game) {
     game.audience.push(user);
-    user.socket.emit('game-state', game.state);
+    user.socket.emit(
+      'game-state',
+      {gameId: gameId,
+       state: game.state}
+    );
   }
 };

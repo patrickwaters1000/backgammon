@@ -133,11 +133,6 @@ exports.login = (socket, m, callback) => {
   );
 };
 
-exports.updateSocket = (token, socket) => {
-  activeUsers[token].socket = socket;
-  console.log(`Updated socket for token ${token}`);
-}
-
 // If a user is logged out, we must abort all their games, but this
 // isn't the right place in the code for that.
 exports.logout = (token) => {
