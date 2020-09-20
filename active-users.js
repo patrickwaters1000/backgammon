@@ -11,12 +11,13 @@ class UserNotFound extends Error {
     this.name = "UserNotFound";
   }
 };
+
 exports.UserNotFound = UserNotFound;
 
-function getUser(id) {
-  const user = activeUsers[id];
+function getUser(token) {
+  const user = activeUsers[token];
   if (!user) {
-    throw new UserNotFound(`User ${id} not found.`);
+    throw new UserNotFound(`User ${token} not found.`);
   }
   return user;
 }
@@ -51,6 +52,50 @@ function newActiveUser (name, socket) {
 exports.listActiveUsers = () => {
   return Object.values(activeUsers).map( user => user.name );
 };
+
+function addKeyIfMissing (o, k) {
+  if (!Object.keys(o).includes(k)) {
+    o[k] = {};
+  }
+}
+
+function prepareActiveUsersMsg (toUser) {
+  let msg = {};
+  let logThis = Object.values(activeUsers).map(
+    user => user.name
+  );
+  console.log(
+    `Preparing active users msg ${JSON.stringify(logThis)}`
+  );
+  Object.values(activeUsers).forEach(
+    user => {
+      addKeyIfMissing(msg, user.name);
+      if (user.name == toUser.name) {
+	user.challenges.forEach(
+	  otherUserName => {
+	    addKeyIfMissing(msg, otherUserName);
+	    msg[otherUserName].outgoing = true;
+	  });
+      } else {
+	if (user.challenges.includes(toUser.name)) {
+	  msg[user.name].incoming = true;
+	}
+      }
+    },
+  );
+  return msg;
+}
+
+exports.announceActiveUsersToAll = () => {
+  Object.values(activeUsers).forEach(user => {
+    user.socket.emit(
+      'active-users',
+      prepareActiveUsersMsg(user.name)
+    );
+  });
+}
+
+exports.prepareActiveUsersMsg = prepareActiveUsersMsg;
 
 // callback is function of whether login was successful
 function authenticate (name, password, callback) {
@@ -111,13 +156,18 @@ exports.logout = (token) => {
 // both players already have active games. Currently, we even allow
 // multiple challenges from p1 to p2.
 
-// TODO: Do not forward repeated challenges from A to B.
 exports.challenge = (token1, name2) => {
   const user1 = getUser(token1);
   const user2 = getUser(userToToken[name2]);
-  user1.challenges.push(user2.name);
-  console.log(`Forwarding challenge to ${name2}`);
-  user2.socket.emit('challenge', { from: user1.name });
+  if (!user1.challenges.includes(user2.name)) {
+    user1.challenges.push(user2.name);
+    console.log(`Forwarding challenge to ${name2}`);
+    user2.socket.emit('challenge', { from: user1.name });
+    user2.socket.emit(
+      'active-users',
+      prepareActiveUsersMsg(user2.name)
+    );
+  }
 };
 
 exports.cancelChallenge = (token1, name2) => {

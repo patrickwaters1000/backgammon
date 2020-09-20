@@ -55,8 +55,10 @@ socket.on('token', m => { token = m; } );
 // Really should be using channels instead.
 socket.on('active-users', m => {
   if (gameId == null && challenge) {
-    const players = m.filter( player => (player != name));
-    const pone = randomChoice(players);
+    let users = Object.keys(m).filter(
+      userName => (userName != name)
+    );
+    const pone = randomChoice(users);
     if (pone) {
       socket.emit(
 	'challenge',
@@ -139,7 +141,10 @@ socket.emit(
 setInterval(
   () => {
     if (!gameId && challenge) {
-      socket.emit('request-active-users', null);
+      socket.emit(
+	'request-active-users',
+	{token: token}
+      );
       // on response, will issue challenge
     }
   },
