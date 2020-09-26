@@ -11,9 +11,19 @@ import { newGame,
          nextTurnIfNoMove } from "../game.js";
 import { deepCopy } from "../utils.js";
 
+/*
+Bugs
+* Cannot unselect tokens
+* Tokens in home area not appearing
+* After game over, board is shown flipped??
+* Login screen has no css
+* After declining challenge, challenge should re-appear
+*/
+
 var socket = io();
 var handle = null;
 
+// Confusing that token and selectedToken mean different things
 var state = {
   token: null,
   userName: null,
@@ -30,7 +40,7 @@ function setGameEventHandlers(s) {
     console.log('Trying to click token');
     if (s.selectedToken) {
       console.log('Setting selected token to null');
-      s.selectedToken = null;
+      state.selectedToken = null;
     } else {
       console.log(('Setting selected token with '
 		   + `pipIndex: ${pipIndex} `
@@ -208,7 +218,7 @@ window.addEventListener(
 		     +`doesn't match ${msg.white} or ${msg.black}`));
       }
       if (state.gameState == null) {
-	state.gameState = newGame();
+	state.gameState = newGame(); // Do we need this?
       }
       updateState();
     });
@@ -223,6 +233,7 @@ window.addEventListener(
     socket.on('game-over', msg => {
       gameId = null;
       gameState = null;
+      socket.emit('request-active-users', {token: state.token});
     });
   }
 );

@@ -28,19 +28,22 @@ export default class Login extends React.Component {
 	  onSubmit: p.submitForm
 	},
 	React.createElement(
-	  "h2", null, "Backgammon"),
+	  "p", null, React.createElement(
+	    "h2", null, "Backgammon")
+	),
 	React.createElement(
-	  "label", null, "Username"),
+	  "p", null,
+	  React.createElement("label", null, "Username"),
+	  React.createElement("input", userNameInputProps)
+	),
 	React.createElement(
-	  "input", userNameInputProps),
+	  "p", null,
+	  React.createElement("label", null, "Password"),
+	  React.createElement("input", passwordInputProps)
+	),
 	React.createElement(
-	  "label", null, "Password"),
-	React.createElement(
-	  "input", passwordInputProps),
-	React.createElement(
-	  "button",
-	  {type: "submit"},
-	  "Login"
+	  "p", null,
+	  React.createElement("button", {type: "submit"}, "Login")
 	)
       )
     );

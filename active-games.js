@@ -1,7 +1,8 @@
 const sqlite = require('sqlite3').verbose();
 const Game = require('./game.js');
 const games = {};
-const { authenticate } = require('./utils.js');
+const { deepCopy,
+	authenticate } = require('./utils.js');
 
 /* API
 - new game (token1, token2)
@@ -110,10 +111,20 @@ exports.move = function (token, gameId, from, to) {
   activeColor = game.state.active;
   requiredToken = game[activeColor].token;
   authenticate(requiredToken, token);
-  const state = game.state;
+
+  // TODO: Apparently the turn can pass to the other player if an
+  // illegal move is attempted. Figure out what is going on and make
+  // the code more solid so that the move operation is garunteed to
+  // either succeed completely, or leave the state unchanged.
+  var state = deepCopy(game.state);
   const move = { from: from, to: to };
   Game.move(state, move);
   Game.nextTurnIfNoMove(state);
+  game.state = state;
+
+  // Wait, shouldn't we be making deep copies when appending to
+  // history? It would be terribly confusing if a later operation
+  // mutated data already in the history.
   game.history.push(['move',[from, to]]);
   send(game, 'game-state', {
     gameId: gameId,

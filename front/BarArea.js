@@ -20,7 +20,7 @@ export default class BarArea extends React.Component {
         y: yMin + i * 2 * tokenRadius,
         controller: (i < p.whiteTokens ? "white" : "black"),
         selected: i==p.selectedToken, // often "selectedToken" is null
-        clickToken: () => p.clickToken(i)
+        onClick: () => p.clickToken(i)
       });
   }
 
