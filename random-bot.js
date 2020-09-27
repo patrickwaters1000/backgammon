@@ -52,27 +52,33 @@ socket.on('token', m => { token = m; } );
 
 // Listening for this so to send challenges.
 // Really should be using channels instead.
-socket.on('active-users', m => {
-  if (gameId == null && challenge) {
-    let users = Object.keys(m).filter(
-      userName => (userName != name)
-    );
-    const pone = randomChoice(users);
+socket.on('active-users', users => {
+  let otherUsers = users.filter( u => (u != name ) );
+  if (gameId == null
+      && challenge
+      && otherUsers.length > 0) {
+    const pone = randomChoice(otherUsers);
     if (pone) {
       socket.emit(
-	'challenge',
-	{ to: pone,
+	'update-challenges',
+	{ action: 'open',
+	  to: pone,
 	  token: token }
       );
     }
   }
 });
 
-socket.on('challenge', m => {
-  if (!gameId && accept) {
+socket.on('challenges', m => {
+  console.log(m);
+  let users = m.incoming;
+  if (!gameId
+      && accept
+      && users.length > 0) {
     socket.emit(
-      'challenge-accepted',
-      { to: m.from,
+      'update-challenges',
+      { action: 'accept',
+	to: users[0],
 	token: token });
   }
 });

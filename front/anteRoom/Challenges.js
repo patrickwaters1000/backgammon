@@ -3,27 +3,33 @@ import React, { Component } from "react";
 export default class Challenges extends React.Component {
   tableRow (p, userName) {
     let user = p.activeUsers[userName];
+    let { incoming, outgoing } = p.challenges;
     let nameTDProps = (
       p.userName == userName
 	? null
 	: {className: "blueHover",
-	   onClick: () => { p.sendMsg('challenge', userName); }}
+	   onClick: () => { p.sendMsg('open', userName); }}
     );
     let yesButton, noButton;
-    if (user.incoming) {
+    if (incoming.includes(userName)) {
       yesButton = React.createElement(
 	"button",
-	{onClick: () => { p.sendMsg('challenge-accepted', userName); }},
+	{onClick: () => { p.sendMsg('accept', userName); }},
 	"Accept");
       noButton = React.createElement(
 	"button",
-	{onClick: () => { p.sendMsg('challenge-declined', userName); }},
+	{onClick: () => { p.sendMsg('decline', userName); }},
 	"Decline");
-    } else if (user.outgoing) {
+    } else if (outgoing.includes(userName)) {
       noButton = React.createElement(
 	"button",
-	{onClick: () => { p.sendMsg('cancel-challenge', userName); }},
+	{onClick: () => { p.sendMsg('cancel', userName); }},
 	"Cancel");
+    } else {
+      yesButton = React.createElement(
+	"button",
+	{onClick: () => { p.sendMsg('open', userName); }},
+	"Challenge");
     }
     return React.createElement(
       "tr",
@@ -46,7 +52,7 @@ export default class Challenges extends React.Component {
             React.createElement(
 	      "th", { style: { width: "50%" }}, "Player"),
             React.createElement(
-	      "th", { style: { width: "25%" }}, "Accept"),
+	      "th", { style: { width: "25%" }}, "Challenges/Accept"),
             React.createElement(
 	      "th", { style: { width: "25%" }}, "Decline/cancel")
           )

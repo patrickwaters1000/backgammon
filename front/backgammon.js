@@ -27,7 +27,8 @@ var handle = null;
 var state = {
   token: null,
   userName: null,
-  activeUsers: {},  // userName -> {incoming, outgoing}
+  activeUsers: [],
+  challenges: {},
   gameId: null,
   gameState: null,
   selectedToken: null // a backgammon token, not a login token
@@ -106,19 +107,17 @@ function sendChallenge (toUserName) {
   state.activeUsers[toUserName] = { outgoing: true };
   updateState();
   socket.emit(
-      'challenge',
-      { token: state.token, to: toUserName });
+    'update-challenges',
+    { action: 'open', token: state.token, to: toUserName });
 }
 
 function answerChallenge (fromUserName, accept) {
   state.activeUsers[fromUserName] = {};
   updateState();
-  header = (accept
-	    ? 'challenge-accepted'
-	    : 'challenge-declined');
   socket.emit(
-    header,
-    { token: state.token,
+    'update-challenges',
+    { action: (accept ? 'accept' : 'decline'),
+      token: state.token,
       to: fromUserName });
 }
 
@@ -150,11 +149,13 @@ class Page extends React.Component {
 	  Challenges,
 	  {
 	    activeUsers: s.activeUsers,
+	    challenges: s.challenges,
 	    userName: s.userName,
-	    sendMsg: (header, toUserName) => {
+	    sendMsg: (action, toUserName) => {
 	      socket.emit(
-		header,
-		{ token: s.token,
+		'update-challenges',
+		{ action: action,
+		  token: s.token,
 		  to: toUserName }
 	      );
 	    }
@@ -203,6 +204,12 @@ window.addEventListener(
       state.activeUsers = msg;
       updateState();
       console.log('Received active users');
+    });
+
+    socket.on('challenges', msg => {
+      state.challenges = msg;
+      updateState();
+      console.log('Received challenges');
     });
 
     socket.on('game-info', msg => {

@@ -4,13 +4,6 @@ const games = {};
 const { deepCopy,
 	authenticate } = require('./utils.js');
 
-/* API
-- new game (token1, token2)
-- roll
-- move
-- resign
-*/
-
 function connect () {
   let db = new sqlite.Database(
     './db/primary.db',
@@ -31,42 +24,20 @@ INSERT INTO games(white, black, winner, history)
 VALUES (?, ?, ?, ?)`
   db.run(
     sql,
-    [game.white.name,
-     game.black.name,
+    [game.white,
+     game.black,
      game.winner,
      JSON.stringify(game.history)],
   );
   db.close();
 }
 
-class GameNotFound extends Error {
-  constructor (msg) {
-    super(msg);
-    this.name = "GameNotFound";
-  }
-};
-exports.GameNotFound = GameNotFound;
-
 function getGame(id) {
   const game = games[id];
   if (!game) {
-    throw new GameNotFound(`Game ${id} not found.`);
+    console.log(`Game ${id} not found.`);
   }
   return game;
-}
-
-
-// handle authentication and getting users in index.
-
-function send(game, msg, data) {
-  //console.log('Sending game:', JSON.stringify(game));
-  const users = [game.white, game.black, ...game.audience];
-  users.forEach( user => {
-    console.log((`Sending to ${user.name} `
-		 + `msg ${msg} `
-		 + `data ${JSON.stringify(data)}`));
-    user.socket.emit(msg, data);
-  });		 
 }
 
 // No authentication because called after 'acceptChallenge'
@@ -83,63 +54,113 @@ exports.newGame = function (user1, user2) {
     winner: null
   };
   games[id] = game;
-  send(game, 'game-info', {
-    gameId: id,
-    white: user1.name,
-    black: user2.name
-  });
-  send(game, 'game-state', {
-    gameId: id,
-    state: state
-  });
+  return id;
 };
 
-exports.roll = function (token, gameId) {
-  const game = getGame(gameId);
-  const state = game.state;
-  const dice = Game.roll(state);
-  Game.nextTurnIfNoMove(state);
-  game.history.push(['roll', dice]);
-  send(game, 'game-state', {
-    gameId: gameId,
-    state: state,
-  });
+exports.getAudience = (id) => {
+  let game = getGame(id);
+  if (game) {
+    return [game.white, game.black, ...game.audience];
+  }
 };
 
-exports.move = function (token, gameId, from, to) {
+exports.getGameInfoMsg = (id) => {
+  let game = getGame(id);
+  if (game) {
+    return {
+      gameId: id,
+      white: game.white,
+      black: game.black
+    };
+  } else {
+    console.log(`Can't find game ${id}`);
+  }
+};
+
+exports.getGameStateMsg = (id) => {
+  let game = getGame(id);
+  if (game) {
+    return {
+      gameId: id,
+      state: game.state
+    };
+  } else {
+    console.log(`Can't find game ${id}`);
+  }
+};
+
+exports.canRoll = (id, player) => {
+  let game = getGame(id);
+  if (!game) {
+    console.log(`Can't find game ${id}`);
+    return false;
+  } else {
+    let activeColor = game.state.active;
+    let rtp = game.state.rollsToPlay;
+    if (game[activeColor] != player) {
+      console.log((`Wrong player ${player} is trying to roll; `
+ 		   + `expected ${game[activeColor]}`));
+      return false;
+    } else if (rtp != null && rtp.length > 0) {
+      console.log(("Can't roll with rolls to play "
+		   + JSON.stringify(rtp)));
+      return false;
+    } else {
+      return true;
+    }
+  }
+};
+
+exports.roll = function (gameId) {
   const game = getGame(gameId);
-  activeColor = game.state.active;
-  requiredToken = game[activeColor].token;
-  authenticate(requiredToken, token);
+  if (game) {
+    const state = game.state;
+    const dice = Game.roll(state);
+    Game.nextTurnIfNoMove(state);
+    game.history.push(['roll', dice]);
+    console.log(`Rolled ${JSON.stringify(dice)}`);
+  }
+};
 
-  // TODO: Apparently the turn can pass to the other player if an
-  // illegal move is attempted. Figure out what is going on and make
-  // the code more solid so that the move operation is garunteed to
-  // either succeed completely, or leave the state unchanged.
-  var state = deepCopy(game.state);
-  const move = { from: from, to: to };
-  Game.move(state, move);
-  Game.nextTurnIfNoMove(state);
-  game.state = state;
+// Just checks whether it's the player's turn
+exports.canMove = (id, player) => {
+  let game = getGame(id);
+  if (game) {
+    let activeColor = game.state.active;
+    let rtp = game.state.rollsToPlay;
+    if (game[activeColor] != player) {
+      console.log((`Wrong player ${player} is trying to roll; `
+		   + `expected ${game[activeColor]}`));
+      return false;
+    } else if (rtp == null || rtp.length == 0) {
+      console.log(("Can't move with rolls to play "
+                   + JSON.stringify(game.rollsToPlay)));
+      return false;
+    } else {
+      return true;
+    }
+  }
+};
+  
+exports.move = function (gameId, from, to) {
+  const game = getGame(gameId);
+  if (game) {
+    activeColor = game.state.active;
 
-  // Wait, shouldn't we be making deep copies when appending to
-  // history? It would be terribly confusing if a later operation
-  // mutated data already in the history.
-  game.history.push(['move',[from, to]]);
-  send(game, 'game-state', {
-    gameId: gameId,
-    state: state
-  });
-  console.log('State:', JSON.stringify(game.state));
-  winner = Game.winner(state);
-  if (winner) {
-    game.winner = winner;
-    writeGame(game);
-    delete games.gameId; // Check that this doesn't destroy the game
-    send(game, 'game-over', {
-      gameId: gameId,
-      winner: winner
-    });
+    var state = deepCopy(game.state);
+    const move = { from: from, to: to };
+    Game.move(state, move);
+    Game.nextTurnIfNoMove(state);
+    game.state = state;
+    game.history.push(['move',[from, to]]);
+    
+    winner = Game.winner(state);
+    if (winner) {
+      game.winner = winner;
+      writeGame(game);
+      delete games.gameId;
+    }
+    return winner;
   }
 }
 

@@ -3,21 +3,24 @@ var express = require('express');
 var app = express();
 var http = require('http').createServer(app);
 var io = require('socket.io')(http);
-const { getUser,
-	login,
+const { login,
 	logout,
-	updateSocket,
-	listActiveUsers,
-	prepareActiveUsersMsg,
-	announceActiveUsersToAll,
-	challenge,
-	cancelChallenge,
-	acceptChallenge,
-	declineChallenge } = require('./active-users.js');
+	getUserName,
+	getActiveUsers } = require('./authentication.js');
+const { prepareActiveUsersMsg,
+	openChallenge,
+	closeChallenge,
+	challengeIsOpen,
+	prepareChallengesMsg } = require('./active-users.js');
 const { newGame,
+	canRoll,
 	roll,
+	canMove,
 	move,
 	resign,
+	getGameInfoMsg,
+	getGameStateMsg,
+	getAudience,
         watchGame } = require('./active-games.js');
 const { connect,
         query } = require('./sql-utils.js');
@@ -45,6 +48,24 @@ Nice to have
   checking whether the user is null
 * SQLite tables for games etc.
 */
+
+userNameToSocket = {};
+const getSocket = (userName) => {
+  const socket = userNameToSocket[userName];
+  if (socket == null) {
+    console.log(`Can't find socket for ${userName}`);
+  }
+  return socket;
+};
+
+function send (userName, header, msg) {
+  let socket = userNameToSocket[userName];
+  if (socket != null) {
+    socket.emit(header, msg);
+  } else {
+    console.log(`Failed to send to ${userName} (null socket)`);
+  }
+}
 
 app.use(express.static('dist'));
 
@@ -80,11 +101,13 @@ io.on('connection', function(socket) {
   
   socket.on(
     'login',
-    m => {
-      console.log('received login:', JSON.stringify(m));
-      login(socket, m, success => {
+    msg => {
+      console.log('received login:', JSON.stringify(msg));
+      login(msg, (success, token) => {
 	if (success) {
-	  announceActiveUsersToAll();
+	  userNameToSocket[msg.name] = socket;
+	  socket.emit('token', token);
+	  io.emit('active-users', getActiveUsers());
 	} else {
 	  console.log('Login failed');
 	  socket.emit('login-failed');
@@ -100,53 +123,89 @@ io.on('connection', function(socket) {
   });
 
   socket.on('request-active-users', m => {
-    let user = getUser(m.token);
-    let resp = prepareActiveUsersMsg(user);
-    console.log(`sending active users ${JSON.stringify(resp)}`);
-    socket.emit('active-users', resp);
-  });
-  
-  socket.on('challenge', m => {
-    console.log('received challenge:', JSON.stringify(m));
-    challenge(m.token, m.to);
+    socket.emit('active-users', getActiveUsers());
   });
 
-  socket.on('cancel-challenge', m => {
-    console.log('received cancel-challenge:', JSON.stringify(m));
-    cancelChallenge(m.token, m.to);
-  });
-
-  socket.on('challenge-accepted', m => {
-    console.log('received challenge-accepted:', JSON.stringify(m));
-    const [p1, p2] = acceptChallenge(m.token, m.to);
-    newGame(p1,p2);
-  });
-
-  socket.on('challenge-declined', m => {
-    console.log('received challenge-declined:', JSON.stringify(m));
-    declineChallenge(m.token, m.to);
-  });
-  
-  socket.on('roll', m => {
-    console.log('received roll:', JSON.stringify(m));
-    try {
-      roll(m.token, m.gameId);
-    } catch (e) {
-      if (e.name == 'GameNotFound') {
-	console.log(e);
-      } else { throw e; }
+  socket.on('request-challenges', msg => {
+    let userName = getUserName(msg.token);
+    if (userName != null) {
+      let resp = prepareChallengesMsg(user);
+      console.log(`sending active users ${JSON.stringify(resp)}`);
+      socket.emit('challenges', resp);
     }
   });
   
-  socket.on('move', m => {
-    console.log('received move:', JSON.stringify(m));
-    try {
-      move(m.token, m.gameId, m.from, m.to);
-    } catch (e) {
-      if (e.name == 'GameNotFound'
-	  || e.name == 'IllegalMove') {
-	console.log(e);
-      } else { throw e; }
+  socket.on('update-challenges', m => {
+    let { token, to, action } = m;
+    let from = getUserName(token)
+    if (from != null) {
+      console.log('received: ', JSON.stringify(m));
+      switch (action) {
+      case 'open':
+	openChallenge(from, to);
+	break;
+      case 'cancel':
+	closeChallenge(from, to);
+	break;
+      case 'decline':
+	closeChallenge(to, from);
+	break;
+      case 'accept':
+	if (challengeIsOpen(to, from)) {
+	  closeChallenge(to, from);
+	  let gameId = newGame(from, to);
+	  let gameInfoMsg = getGameInfoMsg(gameId);
+	  console.log(JSON.stringify(gameInfoMsg));
+	  socket.emit('game-info', gameInfoMsg);
+	  send(to, 'game-info', gameInfoMsg);
+	  let gameStateMsg = getGameStateMsg(gameId);
+	  socket.emit('game-state', gameStateMsg);
+	  send(to, 'game-state', gameStateMsg);
+	}
+	break;
+      }
+      socket.emit('challenges', prepareChallengesMsg(from));
+      send(to, 'challenges', prepareChallengesMsg(to));
+    }
+  });
+  
+  socket.on('roll', msg => {
+    console.log('received roll:', JSON.stringify(msg));
+    let { token, gameId } = msg;
+    user = getUserName(token);
+    if (user && canRoll(gameId, user)) {
+      roll(gameId);
+      msg = getGameStateMsg(gameId);
+      getAudience(gameId).forEach(user => {
+	send(user, 'game-state', msg);
+      });
+    } else {
+      console.log('Failed to roll');
+    }
+  });
+  
+  socket.on('move', msg => {
+    console.log('received move:', JSON.stringify(msg));
+    let { token, gameId, from, to } = msg;
+    user = getUserName(token);
+    if (user && canMove(gameId, user)) {
+      try {
+	winner = move(gameId, from, to);
+	msg = getGameStateMsg(gameId);
+	getAudience(gameId).forEach(user => {
+	  send(user, 'game-state', msg);
+	  if (winner) {
+	    let gameOverMsg = {gameId: gameId, winner: winner};
+	    send(user, 'game-over', gameOverMsg);
+	  }
+	});
+      } catch (err) {
+	if (err.name == "IllegalMove") {
+	  console.log(err);
+	} else {
+	  throw err;
+	}
+      }
     }
   });
 });
