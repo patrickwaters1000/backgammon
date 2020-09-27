@@ -37,6 +37,12 @@ function initialTokens () {
     -5, 0, 0, 0, 3, 0, 5, 0, 0, 0, 0, -2,
     0 // home area for white, bar area for black
   ];
+  /*return [
+    0,
+    0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0,
+    0
+  ];*/
 }
 
 function newGame () {

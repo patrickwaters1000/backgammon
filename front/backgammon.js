@@ -28,7 +28,7 @@ var state = {
   token: null,
   userName: null,
   activeUsers: [],
-  challenges: {},
+  challenges: {incoming: [], outgoing: []},
   gameId: null,
   gameState: null,
   selectedToken: null // a backgammon token, not a login token
@@ -238,9 +238,12 @@ window.addEventListener(
     });
 
     socket.on('game-over', msg => {
-      gameId = null;
-      gameState = null;
+      console.log("Recieved game over ", JSON.stringify(msg));
+      state.gameId = null;
+      state.gameState = null;
+      updateState()
       socket.emit('request-active-users', {token: state.token});
+      socket.emit('request-challenges', {token: state.token});
     });
   }
 );

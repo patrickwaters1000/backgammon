@@ -1,4 +1,5 @@
 const { drop } = require('./utils.js');
+const { connect } = require('./sql-utils.js');
 
 const challenges = {}; // map of fromUserName --> toUserName --> true
 

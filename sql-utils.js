@@ -3,7 +3,7 @@ const sqlite = require('sqlite3').verbose();
 exports.connect = function () {
   let db = new sqlite.Database(
     './db/primary.db',
-    sqlite.OPEN_READONLY,
+    sqlite.OPEN_READWRITE,
     err => {
       if (err) {
 	console.log(err);
@@ -11,8 +11,9 @@ exports.connect = function () {
     }
   );
   return db;
-}
+};
 
+/*
 exports.query = function (db, sql) {
   const p = new Promise( (res, rej) => {
     db.all(
@@ -26,4 +27,4 @@ exports.query = function (db, sql) {
   });
   return p;
 }
-
+*/

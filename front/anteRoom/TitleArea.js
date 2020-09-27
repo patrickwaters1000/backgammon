@@ -6,9 +6,6 @@ export default class TitleArea extends React.Component {
       "div", null,
       React.createElement(
 	"h2", null , "Backgammon"),
-      React.createElement(
-	"p", null, "Click a player to challenge them"
-      )
     );
   }
 }

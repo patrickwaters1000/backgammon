@@ -1,21 +1,9 @@
 const sqlite = require('sqlite3').verbose();
 const Game = require('./game.js');
+const { connect } = require('./sql-utils.js');
 const games = {};
 const { deepCopy,
 	authenticate } = require('./utils.js');
-
-function connect () {
-  let db = new sqlite.Database(
-    './db/primary.db',
-    sqlite.OPEN_READWRITE,
-    err => {
-      if (err) {
-	console.log(err);
-      }
-    }
-  );
-  return db;
-};
 
 function writeGame (game) {
   let db = connect();
@@ -141,7 +129,7 @@ exports.canMove = (id, player) => {
     }
   }
 };
-  
+
 exports.move = function (gameId, from, to) {
   const game = getGame(gameId);
   if (game) {

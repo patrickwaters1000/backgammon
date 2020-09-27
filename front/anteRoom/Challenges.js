@@ -4,12 +4,6 @@ export default class Challenges extends React.Component {
   tableRow (p, userName) {
     let user = p.activeUsers[userName];
     let { incoming, outgoing } = p.challenges;
-    let nameTDProps = (
-      p.userName == userName
-	? null
-	: {className: "blueHover",
-	   onClick: () => { p.sendMsg('open', userName); }}
-    );
     let yesButton, noButton;
     if (incoming.includes(userName)) {
       yesButton = React.createElement(
@@ -25,7 +19,7 @@ export default class Challenges extends React.Component {
 	"button",
 	{onClick: () => { p.sendMsg('cancel', userName); }},
 	"Cancel");
-    } else {
+    } else if (p.userName != userName) {
       yesButton = React.createElement(
 	"button",
 	{onClick: () => { p.sendMsg('open', userName); }},
@@ -34,13 +28,14 @@ export default class Challenges extends React.Component {
     return React.createElement(
       "tr",
       null,
-      React.createElement("td", nameTDProps, userName),
+      React.createElement("td", null, userName),
       React.createElement("td", null, yesButton),
       React.createElement("td", null, noButton)
     );
   }
 
   render() {
+    let p = this.props;
     return React.createElement(
       "div", { className: "flexGrow", style: { width: "100%" } },
       React.createElement(
@@ -59,8 +54,8 @@ export default class Challenges extends React.Component {
         ),
         React.createElement(
           "tbody", null,
-          ...Object.keys(this.props.activeUsers).map(
-	    userName => this.tableRow(this.props, userName)
+          ...p.activeUsers.map(
+	    userName => this.tableRow(p, userName)
 	  )
         )
       )
