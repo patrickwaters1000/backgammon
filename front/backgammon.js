@@ -13,11 +13,23 @@ import { deepCopy } from "../utils.js";
 
 /*
 Bugs
-* Cannot unselect tokens
-* Tokens in home area not appearing
-* After game over, board is shown flipped??
-* Login screen has no css
-* After declining challenge, challenge should re-appear
+- Tokens in home area not appearing
+- After game over, board is shown flipped??
+- Login screen has no css
+*/
+
+/*
+Want features
+- Watch button
+- Return from watching game
+- End of game screen
+- Stats / Elos
+- Show tokens in home area
+- Show who's turn it is
+- Show somehow whether a die has been played
+- Improve UI for selecting a move 
+    - highlight pips
+    - keyboard input
 */
 
 var socket = io();
@@ -125,7 +137,7 @@ class Page extends React.Component {
   constructor(props) {
     super(props);
     handle = this;
-    this.state = {
+    this.state = { // Can delete?
       token: null,
       activeUsers: {},
       userName: null

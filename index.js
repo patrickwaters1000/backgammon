@@ -73,15 +73,15 @@ app.get('/', function(req, res) {
   res.sendFile(`${__dirname}/dist/backgammon.html`);
 });
 
-app.get('/replay', function(req, res) {
-  res.sendFile(`${__dirname}/dist/replayGame.html`);
+app.get('/watch', function(req, res) {
+  res.sendFile(`${__dirname}/dist/watchGame.html`);
 });
 
 io.on('connection', function(socket) {
   console.log('Connection!');
 
   socket.on('watch', token => {
-    user = getUser(token);
+    user = getUserName(token);
     watchGame(user);
   });
 

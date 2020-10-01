@@ -106,7 +106,7 @@ exports.roll = function (gameId) {
     const dice = Game.roll(state);
     Game.nextTurnIfNoMove(state);
     game.history.push(['roll', dice]);
-    console.log(`Rolled ${JSON.stringify(dice)}`);
+    //console.log(`Rolled ${JSON.stringify(dice)}`);
   }
 };
 
@@ -130,6 +130,15 @@ exports.canMove = (id, player) => {
   }
 };
 
+scores = {};
+const updateScores = result => {
+  let { winner } = result;
+  if (!scores[winner]) {
+    scores[winner] = 0;
+  }
+  scores[winner]++;
+};
+
 exports.move = function (gameId, from, to) {
   const game = getGame(gameId);
   if (game) {
@@ -147,6 +156,8 @@ exports.move = function (gameId, from, to) {
       game.winner = winner;
       writeGame(game);
       delete games.gameId;
+      updateScores({winner:winner});
+      console.log(`\n\nScores: ${JSON.stringify(scores)}\n\n`);
     }
     return winner;
   }
@@ -162,10 +173,5 @@ exports.watchGame = function (user) {
   let game = games[gameId]
   if (game) {
     game.audience.push(user);
-    user.socket.emit(
-      'game-state',
-      {gameId: gameId,
-       state: game.state}
-    );
   }
 };

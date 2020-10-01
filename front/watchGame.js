@@ -50,35 +50,21 @@ function findGameLoop() {
 	findGameLoop();
       }
     },
-    100
+    5000
   );
 }	      
 
 socket.on('token', t => {
+  console.log(`Recieved token ${t}`);
   token = t;
 });
 
-socket.on('game-state', s => {
-  console.log("Received state",JSON.stringify(s));
+socket.on('game-state', msg => {
+  let { state } = msg;
+  console.log("Received state",JSON.stringify(state));
   watchingGame = true;
-  setEventHandlers(s);
-  handle.setState(s);
-});
-
-socket.on('roll', m => {
-  console.log("Received roll", JSON.stringify(m));
-  let sNew = deepCopy(handle.state);
-  setDice(sNew, m.dice);
-  nextTurnIfNoMove(sNew);
-  handle.setState(sNew);
-});
-
-socket.on('move', m => {
-  console.log("Received move", JSON.stringify(m));
-  let sNew = deepCopy(handle.state);
-  move(sNew, m);
-  nextTurnIfNoMove(sNew);
-  handle.setState(sNew);
+  setEventHandlers(state);
+  handle.setState(state);
 });
 
 socket.on(
