@@ -1,8 +1,8 @@
 const path = require('path');
 const HtmlWebPackPlugin = require("html-webpack-plugin");
 
-//const page = 'backgammon';
-const page = 'watchGame';
+const page = 'backgammon';
+//const page = 'watchGame';
 //const page = 'replayGame';
 //const page = 'anteRoom';
 
