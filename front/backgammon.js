@@ -34,6 +34,12 @@ Want features
 var socket = io();
 var handle = null;
 
+// Apparently, messages from the server may not be received in the
+// same order they are sent?? Thus we must ignore messages about
+// completed games. If this is all correct, some other parts of the
+// app should be redesigned as well.
+var completedGames = {};
+
 // Confusing that token and selectedToken mean different things
 var appState = {
   token: null,
@@ -201,23 +207,29 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on('game-info', msg => {
+    let { gameId, white, black } = msg;
     console.log("Received game info msg ", JSON.stringify(msg));
-    appState.gameId = msg.gameId;
-    let { userName } = appState;
-    appState.color = (msg.white == userName ? 'white' :
-		      msg.black == userName ? 'black' : null);
-    if (appState.color == null) {
-      console.log((`Warning! Username ${userName} `
-		   +`doesn't match ${msg.white} or ${msg.black}`));
+    if (!completedGames[gameId]) {
+      appState.gameId = gameId;
+      let { userName } = appState;
+      appState.color = (white == userName ? 'white' :
+			black == userName ? 'black' : null);
+      if (appState.color == null) {
+	console.log((`Warning! Username ${userName} `
+		     +`doesn't match ${white} or ${black}`));
+      }
+      syncAppState();
     }
-    syncAppState();
   });
 
   socket.on('game-state', msg => {
+    let { gameId, state } = msg;
     console.log("Received game state msg ", JSON.stringify(msg));
-    appState.gameId = msg.gameId;
-    appState.gameState = msg.state;
-    syncAppState();
+    if (!completedGames[gameId]) {
+      appState.gameId = gameId;
+      appState.gameState = state;
+      syncAppState();
+    }
   });
 
   socket.on('current-games', msg => {
@@ -227,6 +239,8 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on('game-over', msg => {
+    let { gameId } = msg;
+    completedGames[gameId] = true;
     console.log("Recieved game over ", JSON.stringify(msg));
     appState.gameId = null;
     appState.gameState = null;
