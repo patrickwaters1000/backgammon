@@ -47,8 +47,8 @@ var appState = {
   activeUsers: [],
   currentGames: {},
   challenges: {incoming: [], outgoing: []},
-  gameId: null,
-  gameState: null,
+  gameInfo: {id: null, white: null, black: null},
+  gameState: null
   selectedToken: null // a backgammon token, not a login token
 };
 
@@ -69,7 +69,7 @@ const clickPip = pipIndex => {
   if (appState.selectedToken) {
     let msg = {
       token: appState.token,
-      gameId: appState.gameId,
+      gameId: appState.gameInfo.id,
       from: appState.selectedToken.pipIndex,
       to: pipIndex
     };
@@ -82,7 +82,7 @@ const clickDice = () => {
   console.log('Trying to click dice');
   socket.emit('roll', {
     token: appState.token,
-    gameId: appState.gameId
+    gameId: appState.gameInfo.id
   });
 };
 
@@ -158,8 +158,9 @@ class Page extends React.Component {
       );
     } else { // Playing or watching a game
       return React.createElement(
-	Board,
+	BoardPage,
 	{ ...s.gameState,
+	  gameInfo: s.gameInfo,
 	  clickPip: s.clickPip,
 	  clickToken: s.clickToken,
 	  clickDice: s.clickDice,
@@ -210,7 +211,7 @@ window.addEventListener("DOMContentLoaded", () => {
     let { gameId, white, black } = msg;
     console.log("Received game info msg ", JSON.stringify(msg));
     if (!completedGames[gameId]) {
-      appState.gameId = gameId;
+      appState.gameInfo = msg;
       let { userName } = appState;
       appState.color = (white == userName ? 'white' :
 			black == userName ? 'black' : null);
@@ -226,7 +227,7 @@ window.addEventListener("DOMContentLoaded", () => {
     let { gameId, state } = msg;
     console.log("Received game state msg ", JSON.stringify(msg));
     if (!completedGames[gameId]) {
-      appState.gameId = gameId;
+      appState.gameInfo.id = gameId;
       appState.gameState = state;
       syncAppState();
     }
@@ -242,7 +243,7 @@ window.addEventListener("DOMContentLoaded", () => {
     let { gameId } = msg;
     completedGames[gameId] = true;
     console.log("Recieved game over ", JSON.stringify(msg));
-    appState.gameId = null;
+    appState.gameInfo.id = null;
     appState.gameState = null;
     syncAppState()
     socket.emit('request-active-users', {token: appState.token});
