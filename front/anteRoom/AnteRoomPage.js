@@ -12,8 +12,10 @@ const AnteRoomPage = (props) => {
       {
 	activeUsers: props.activeUsers,
 	challenges: props.challenges,
+	currentGames: props.currentGames,
 	userName: props.userName,
-	sendMsg: props.sendMsg
+	sendMsg: props.sendMsg,
+	watchGame: props.watchGame
       }
     )
   );

@@ -20,7 +20,12 @@ const branch = (h) => {
 
 const branchTwice = h => {
   let hs = branch(h);
-  return [].concat(...hs.map(branch));
+  let hs2x = [].concat(...hs.map(branch));
+  if (hs2x.length > 0) {
+    return hs2x;
+  } else {
+    return hs;
+  }
 };
 
 // find unsafe pips (or occupation numbers)

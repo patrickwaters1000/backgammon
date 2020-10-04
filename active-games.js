@@ -1,9 +1,19 @@
 const sqlite = require('sqlite3').verbose();
 const Game = require('./game.js');
 const { connect } = require('./sql-utils.js');
-const games = {};
 const { deepCopy,
 	authenticate } = require('./utils.js');
+
+const games = {};
+
+const scores = {};
+const updateScores = result => {
+  let { winner } = result;
+  if (!scores[winner]) {
+    scores[winner] = 0;
+  }
+  scores[winner]++;
+};
 
 function writeGame (game) {
   let db = connect();
@@ -28,7 +38,17 @@ function getGame(id) {
   return game;
 }
 
-// No authentication because called after 'acceptChallenge'
+exports.getGamesSummaryMsg = () => {
+  userNameToGameId = {};
+  Object.keys(games).forEach(id => {
+    let g = games[id];
+    userNameToGameId[g.white] = id;
+    userNameToGameId[g.black] = id;
+  });
+  return userNameToGameId;
+};
+    
+
 exports.newGame = function (user1, user2) {
   const id = Math.random().toString().substring(2);
   const state = Game.newGame();
@@ -130,15 +150,6 @@ exports.canMove = (id, player) => {
   }
 };
 
-scores = {};
-const updateScores = result => {
-  let { winner } = result;
-  if (!scores[winner]) {
-    scores[winner] = 0;
-  }
-  scores[winner]++;
-};
-
 exports.move = function (gameId, from, to) {
   const game = getGame(gameId);
   if (game) {
@@ -167,11 +178,10 @@ exports.resign = function (token, gameId) {
   return null; // TODO
 }
 
-// TODO: Support specifying which game to watch
-exports.watchGame = function (user) {
-  let gameId = Object.keys(games)[0];
+exports.watchGame = function (userName, gameId) {
+  //let gameId = Object.keys(games)[0];
   let game = games[gameId]
   if (game) {
-    game.audience.push(user);
+    game.audience.push(userName);
   }
 };

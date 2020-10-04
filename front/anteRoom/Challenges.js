@@ -4,7 +4,7 @@ export default class Challenges extends React.Component {
   tableRow (p, userName) {
     let user = p.activeUsers[userName];
     let { incoming, outgoing } = p.challenges;
-    let yesButton, noButton;
+    let yesButton, noButton, watchButton;
     if (incoming.includes(userName)) {
       yesButton = React.createElement(
 	"button",
@@ -25,12 +25,21 @@ export default class Challenges extends React.Component {
 	{onClick: () => { p.sendMsg('open', userName); }},
 	"Challenge");
     }
+    let gameId = p.currentGames[userName];
+    if (gameId) {
+      watchButton = React.createElement(
+	"button",
+	{onClick: () => { p.watchGame(gameId); }},
+	"Watch"
+      );
+    }
     return React.createElement(
       "tr",
       null,
       React.createElement("td", null, userName),
       React.createElement("td", null, yesButton),
-      React.createElement("td", null, noButton)
+      React.createElement("td", null, noButton),
+      React.createElement("td", null, watchButton)
     );
   }
 
@@ -49,7 +58,9 @@ export default class Challenges extends React.Component {
             React.createElement(
 	      "th", { style: { width: "25%" }}, "Challenges/Accept"),
             React.createElement(
-	      "th", { style: { width: "25%" }}, "Decline/cancel")
+	      "th", { style: { width: "25%" }}, "Decline/cancel"),
+	    React.createElement(
+	      "th", { style: { width: "25%" }}, "Watch")
           )
         ),
         React.createElement(

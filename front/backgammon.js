@@ -39,6 +39,7 @@ var appState = {
   token: null,
   userName: null,
   activeUsers: [],
+  currentGames: {},
   challenges: {incoming: [], outgoing: []},
   gameId: null,
   gameState: null,
@@ -114,6 +115,14 @@ const sendMsg = (action, toUserName) => {
   );
 };
 
+const watchGame = gameId => {
+  socket.emit(
+    'watch-game',
+    { token: appState.token,
+      gameId: gameId }
+  );
+};
+
 class Page extends React.Component {
   constructor(props) {
     super(props);
@@ -135,8 +144,10 @@ class Page extends React.Component {
 	AnteRoomPage,
 	{ activeUsers: s.activeUsers,
 	  challenges: s.challenges,
+	  currentGames: s.currentGames,
 	  userName: s.userName,
-	  sendMsg: sendMsg
+	  sendMsg: sendMsg,
+	  watchGame: watchGame
 	}
       );
     } else { // Playing or watching a game
@@ -171,6 +182,10 @@ window.addEventListener("DOMContentLoaded", () => {
       'request-active-users',
       {token: appState.token}
     );
+    socket.emit(
+      'request-current-games',
+      null
+    );
   });
 
   socket.on('active-users', msg => {
@@ -202,6 +217,12 @@ window.addEventListener("DOMContentLoaded", () => {
     console.log("Received game state msg ", JSON.stringify(msg));
     appState.gameId = msg.gameId;
     appState.gameState = msg.state;
+    syncAppState();
+  });
+
+  socket.on('current-games', msg => {
+    console.log("Received current games ", JSON.stringify(msg));
+    appState.currentGames = msg;
     syncAppState();
   });
 

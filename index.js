@@ -20,6 +20,7 @@ const { newGame,
 	resign,
 	getGameInfoMsg,
 	getGameStateMsg,
+	getGamesSummaryMsg,
 	getAudience,
         watchGame } = require('./active-games.js');
 const { connect,
@@ -80,9 +81,10 @@ app.get('/watch', function(req, res) {
 io.on('connection', function(socket) {
   console.log('Connection!');
 
-  socket.on('watch', token => {
+  socket.on('watch-game', msg => {
+    const { token, gameId } = msg;
     user = getUserName(token);
-    watchGame(user);
+    watchGame(user, gameId);
   });
 
   socket.on('replay-game', gameId => {
@@ -126,6 +128,13 @@ io.on('connection', function(socket) {
     socket.emit('active-users', getActiveUsers());
   });
 
+  socket.on('request-current-games', m => {
+    console.log(
+      'Sending current games ',
+      JSON.stringify(getGamesSummaryMsg()));
+    socket.emit('current-games', getGamesSummaryMsg());
+  });
+
   socket.on('request-challenges', msg => {
     let userName = getUserName(msg.token);
     if (userName != null) {
@@ -161,6 +170,7 @@ io.on('connection', function(socket) {
 	  let gameStateMsg = getGameStateMsg(gameId);
 	  socket.emit('game-state', gameStateMsg);
 	  send(to, 'game-state', gameStateMsg);
+	  io.emit('current-games', getGamesSummaryMsg());
 	}
 	break;
       }
@@ -197,6 +207,7 @@ io.on('connection', function(socket) {
 	  if (winner) {
 	    let gameOverMsg = {gameId: gameId, winner: winner};
 	    send(user, 'game-over', gameOverMsg);
+	    io.emit('current-games', getGamesSummaryMsg());
 	  }
 	});
       } catch (err) {
