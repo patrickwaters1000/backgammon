@@ -3,8 +3,8 @@ import Pip from "./Pip.js";
 import BarArea from "./BarArea.js";
 import HomeArea from "./HomeArea.js";
 import Dice from "./Dice.js";
-import { newGame } from "../game.js";
-import { range } from "./utils.js";
+import { newGame } from "../../game.js";
+import { range } from "../../utils.js";
 import { pipHalfWidth,
 	 barWidth,
 	 homeWidth,

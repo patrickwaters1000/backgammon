@@ -1,9 +1,9 @@
 import React, { Component } from "react";
 import ReactDOM from "react-dom";
 import io from 'socket.io-client';
-import Login from "./anteRoom/Login.js";
+import Login from "./login/Login.js";
 import AnteRoomPage from "./anteRoom/AnteRoomPage.js";
-import Board from "./Board.js";
+import BoardPage from "./board/BoardPage.js";
 import { newGame,
          move,
 	 setDice,
@@ -48,7 +48,7 @@ var appState = {
   currentGames: {},
   challenges: {incoming: [], outgoing: []},
   gameInfo: {id: null, white: null, black: null},
-  gameState: null
+  gameState: null,
   selectedToken: null // a backgammon token, not a login token
 };
 

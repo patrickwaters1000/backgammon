@@ -4,7 +4,7 @@ import { pipHalfWidth,
 	 pipHeight,
 	 pipColors,
 	 tokenRadius } from "./dimensions.js";
-import { range } from "./utils.js";
+import { range } from "../../utils.js";
 
 /*
 Properties

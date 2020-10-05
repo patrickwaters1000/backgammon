@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import Token from "./Token.js";
-import { range } from "./utils.js";
+import { range } from "../../utils.js";
 import { tokenRadius,
 	 boardHeight,
 	 homeWidth,
